@@ -35,6 +35,8 @@ from lib.solver.build import build_optimizer_cls
 from lib.solver.lr_scheduler_cls import build_scheduler
 from fvcore.nn.flop_count import flop_count
 
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning, message='TypedStorage is deprecated')
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 class NpEncoder(json.JSONEncoder):
