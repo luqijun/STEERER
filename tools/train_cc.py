@@ -35,6 +35,8 @@ from lib.solver.build import build_optimizer_cls
 from lib.solver.lr_scheduler_cls import build_scheduler
 from fvcore.nn.flop_count import flop_count
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.integer):
@@ -56,7 +58,7 @@ def parse_args():
                         required=True,
                         type=str)
 
-    parser.add_argument("--local_rank", type=int, default=0)
+    parser.add_argument("--local-rank", type=int, default=0)
     parser.add_argument('opts',
                         help="Modify config options using the command-line",
                         default=None,
