@@ -282,59 +282,88 @@ def main():
                   extra_trainloader, optimizer, scheduler ,
             model, writer_dict, device)
         else:
+            vis_train_dir = train_log_dir + '/vis_train'
+            os.makedirs(vis_train_dir, exist_ok=True)
             train(config, epoch, config.train.end_epoch,
                   epoch_iters, num_iters,
                   trainloader, optimizer,scheduler, model, writer_dict,
-                  device, train_log_dir + '/../', train_dataset.mean,
+                  device, vis_train_dir, train_dataset.mean,
                   train_dataset.std, task_KPI,train_dataset)
         if epoch >=5:
             train_dataset.AI_resize =False
         if (epoch+1) % bisect_right(config.train.val_span, -epoch) == 0:
+            vis_val_dir = train_log_dir + '/vis_val'
+            os.makedirs(vis_val_dir, exist_ok=True)
             valid_loss, mae, mse, nae = validate(config,
                                                  testloader, model, writer_dict, device,
                                                  config.test.patch_batch_size,
-                                                 train_log_dir + '/../val', test_dataset.mean,
-                                                test_dataset.std)
+                                                 vis_val_dir, test_dataset.mean,
+                                                 test_dataset.std)
             with open(train_log_dir + '/scale_statistic.json', mode='w') as f:
                 f.write(json.dumps(train_dataset.resize_memory_pool, cls=NpEncoder))
 
             if args.local_rank == 0:
                 logger.info('=> saving checkpoint to {}'.format(
                     train_log_dir + 'checkpoint.pth.tar'))
-                torch.save({
-                    'epoch': epoch + 1,
-                    'best_MAE': best_mae,
-                    'best_MSE': best_mse,
-                    'state_dict': model.module.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                }, os.path.join(train_log_dir, 'checkpoint.pth.tar'))
+
+                def save_checkpoint(filename):
+                    torch.save({
+                        'epoch': epoch + 1,
+                        'best_MAE': best_mae,
+                        'best_MSE': best_mse,
+                        'state_dict': model.module.state_dict(),
+                        'optimizer': optimizer.state_dict(),
+                    }, os.path.join(train_log_dir, filename))
+
+                save_checkpoint('checkpoint.pth.tar')
+
+                pth_file_name = os.path.join(
+                    train_log_dir,
+                    'Ep_' + str(epoch) + '_mae_' + str(mae) + '_mse_' + str(mse) + '.pth')
 
                 if mae < best_mae:
                     best_mae = mae
-                    torch.save(
-                        model.module.state_dict(),
-                        os.path.join(
-                            train_log_dir,
-                            'Ep_' +
-                            str(epoch) +
-                            '_mae_' +
-                            str(mae) +
-                            '_mse_' +
-                            str(mse) +
-                            '.pth'))
+                    torch.save(model.module.state_dict(), pth_file_name)
+                    save_checkpoint('checkpoint.pth.tar_best_mae')
+                    best_mae_vis_val_dir = train_log_dir + '/vis_val_best_mae'
+                    copy_cur_env(vis_val_dir, best_mae_vis_val_dir, [])
+
                 if mse < best_mse:
                     best_mse = mse
-                    torch.save(
-                        model.module.state_dict(),
-                        os.path.join(
-                            train_log_dir,
-                            'Ep_' +
-                            str(epoch) +
-                            '_mae_' +
-                            str(mae) +
-                            '_mse_' +
-                            str(mse) +
-                            '.pth'))
+                    torch.save(model.module.state_dict(), pth_file_name)
+                    save_checkpoint('checkpoint.pth.tar_best_mse')
+                    best_mse_vis_val_dir = train_log_dir + '/vis_val_best_mse'
+                    copy_cur_env(vis_val_dir, best_mse_vis_val_dir, [])
+
+
+                # if mae < best_mae:
+                #     best_mae = mae
+                #     torch.save(
+                #         model.module.state_dict(),
+                #         os.path.join(
+                #             train_log_dir,
+                #             'Ep_' +
+                #             str(epoch) +
+                #             '_mae_' +
+                #             str(mae) +
+                #             '_mse_' +
+                #             str(mse) +
+                #             '.pth'))
+                # if mse < best_mse:
+                #     best_mse = mse
+                #     torch.save(
+                #         model.module.state_dict(),
+                #         os.path.join(
+                #             train_log_dir,
+                #             'Ep_' +
+                #             str(epoch) +
+                #             '_mae_' +
+                #             str(mae) +
+                #             '_mse_' +
+                #             str(mse) +
+                #             '.pth'))
+
+
                 msg = 'Loss: {:.3f}, MAE: {: 4.2f}, Best_MAE: {: 4.4f} ' \
                       'MSE: {: 4.4f},Best_MSE: {: 4.4f}'.format(
                           valid_loss, mae, best_mae, mse, best_mse)
