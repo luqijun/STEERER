@@ -146,8 +146,8 @@ def create_logger(cfg, cfg_name, phase='train'):
     elif phase == 'train':
         resume_path = cfg.train.resume_path
 
-        val_output_dir =  Path(cfg.log_dir) / dataset / model / 'val'
-        val_output_dir.mkdir(parents=True, exist_ok=True)
+        # val_output_dir =  Path(cfg.log_dir) / dataset / model / 'val'
+        # val_output_dir.mkdir(parents=True, exist_ok=True)
 
         if resume_path is not None:
             train_log_dir = resume_path
