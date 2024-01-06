@@ -1,2 +1,2 @@
-from .chsloss import *
-from .chsloss2 import *
+from .chs_loss import *
+from .chs_loss2 import *

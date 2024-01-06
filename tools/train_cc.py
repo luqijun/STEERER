@@ -28,8 +28,9 @@ from lib.utils.KPI_pool import Task_KPI_Pool
 from lib.utils.utils import create_logger, random_seed_setting, copy_cur_env
 from lib.core.Counter import *
 from bisect import bisect_right
+from lib.datasets.build_dataset import build_dataset
 from lib.datasets.utils.collate import default_collate
-from lib.models.build_counter import Baseline_Counter
+from lib.models.build_counter import build_counter
 import argparse
 from lib.solver.build import build_optimizer_cls
 from lib.solver.lr_scheduler_cls import build_scheduler
@@ -133,10 +134,11 @@ def main():
             rank, world_size = get_dist_info()
             args.local_rank = rank
     device = torch.device('cuda:{}'.format(args.local_rank))
+    config.device = device
 
     # build model
 
-    model = Baseline_Counter(config.network,config.dataset.den_factor,config.train.route_size,device)
+    model = build_counter(config)
 
       # provide the summary of model
     if args.local_rank == 0:
@@ -187,18 +189,7 @@ def main():
                         .format(checkpoint['epoch']))
 
     # prepare data
-    train_dataset = eval('datasets.' + config.dataset.name)(
-        root=config.dataset.root,
-        list_path=config.dataset.train_set,
-        num_samples=None,
-        num_classes=config.dataset.num_classes,
-        multi_scale=config.train.multi_scale,
-        flip=config.train.flip,
-        ignore_label=None,
-        base_size=config.train.base_size,
-        crop_size=config.train.image_size,
-        min_unit=config.train.route_size,
-        scale_factor=config.train.scale_factor)
+    train_dataset, test_dataset = build_dataset(config)
 
     if distributed:
         train_sampler = DistributedSampler(train_dataset)
@@ -215,19 +206,6 @@ def main():
         persistent_workers=True,
         collate_fn=default_collate,
         sampler=train_sampler)
-
-
-    test_dataset = eval('datasets.' + config.dataset.name)(
-        root=config.dataset.root,
-        list_path=config.dataset.test_set,
-        num_samples=None,
-        num_classes=config.dataset.num_classes,
-        multi_scale=False,
-        flip=False,
-        base_size=config.test.base_size,
-        crop_size=(None, None),
-        min_unit=config.train.route_size,
-        downsample_rate=1)
 
     if distributed:
         test_sampler = DistributedSampler(test_dataset)
