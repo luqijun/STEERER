@@ -8,6 +8,8 @@ print_freq = 30
 seed = 3035
 
 network = dict(
+    module="chf_baseline_counter",
+    model="Chf_Baseline_Counter",
     backbone="MocHRBackbone",
     sub_arch='hrnet48',
     counter_type = 'withMOE', #'withMOE' 'baseline'
@@ -18,6 +20,13 @@ network = dict(
     baseline_loss = False,
     pretrained_backbone="PretrainedModels/hrnetv2_w48_imagenet_pretrained.pth",
 
+    chf =dict(
+        sample_interval=8,
+        bandwidth=8,
+        chf_step=30,
+        chf_tik=0.01,
+        is_dense=True,
+    ),
 
     head = dict(
         type='CountingHead',
@@ -26,10 +35,11 @@ network = dict(
         stages_channel = [384, 192, 96, 48],
         inter_layer=[64,32,16],
         out_channels=1)
+
     )
 
 dataset = dict(
-    name='SHHA',
+    name='SHHA_Chf',
     root='ProcessedData/SHHA/',
     test_set='test.txt',
     train_set='train.txt',
@@ -38,7 +48,6 @@ dataset = dict(
     den_factor=100,
     extra_train_set =None
 )
-
 
 optimizer = dict(
     NAME='adamw',
@@ -71,10 +80,12 @@ log_config = dict(
 
 train = dict(
     counter='normal',
-    image_size=(768, 768),  # height width
-    route_size=(256, 256),  # height, width
+    # image_size=(768, 768),  # height width
+    # route_size=(256, 256),  # height, width
+    image_size=(192, 192),  # height width
+    route_size=(64, 64),  # height, width
     base_size=2048,
-    batch_size_per_gpu=6,
+    batch_size_per_gpu=16,
     shuffle=True,
     begin_epoch=0,
     end_epoch=2000,
@@ -85,6 +96,7 @@ train = dict(
     flip=True,
     multi_scale=True,
     scale_factor=(0.5, 1/0.5),
+    # val_span=[-2000], # 测试用
     val_span=[-2000, -1800,
               -1500, -1500,
               -1400, -1400,
