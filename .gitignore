@@ -13,3 +13,5 @@ scale_generalization/
 exp/*
 ProcessedData
 ProcessedData/*
+
+*.local.py
