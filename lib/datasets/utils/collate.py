@@ -6,6 +6,7 @@ static methods.
 """
 
 import torch
+import numpy as np
 import re
 from torch.utils.data._utils.collate import default_collate
 TORCH_MAJOR = int(torch.__version__.split('.')[0])
@@ -45,6 +46,60 @@ def default_convert(data):
 default_collate_err_msg_format = (
     "default_collate: batch must contain tensors, numpy arrays, numbers, "
     "dicts or lists; found {}")
+
+
+def assign_storage(batch_tensors, stack=True):
+    elem = batch_tensors[0]
+    numel = sum(x.numel() for x in batch_tensors)
+    storage = elem.storage()._new_shared(numel, device=elem.device)
+    if stack:
+        out = elem.new(storage).resize_(len(batch_tensors), *list(elem.size()))
+        return torch.stack(batch_tensors, dim=0, out=out)
+    else:
+        length = sum(x.shape[0] for x in batch_tensors)
+        out = elem.new(storage).resize_(length, *list(elem.size()[1:]))
+        return torch.cat(batch_tensors, dim=0, out=out)
+
+
+def default_collate2(batch):
+
+    images = []
+    labels = []
+    sizes = []
+    names = []
+    point_lens = []
+    points_list = []
+    target_list = []
+    for i, item in enumerate(batch):
+        images.append(torch.as_tensor(item[0]))
+        labels.append([torch.as_tensor(l) for l in item[1]])
+        sizes.append(item[2])
+        names.append(item[3])
+        point_lens.append(item[4])
+        points_list.append(torch.as_tensor(item[5]))
+        target_list.append(torch.as_tensor(item[6]))
+
+    if torch.utils.data.get_worker_info() is not None:
+        images = assign_storage(images)
+        labels = [assign_storage(l) for l in zip(*labels)]
+        points_list = assign_storage(points_list, False)
+        target_list = assign_storage(target_list, False)
+    else:
+        images = torch.stack(images, dim=0)
+        labels = torch.stack(labels, dim=0)
+
+    sizes = torch.as_tensor(np.array(sizes))
+
+    names_arr = []
+    if len(names) == 1:
+        names_arr = names
+    else:
+        name_list = [name[0] for name in names]
+        name_index = [name[1] for name in names]
+        name_resize_factor = [name[2] for name in names]
+        names_arr = [name_list, name_index, name_resize_factor]
+
+    return images, labels, sizes, names_arr, point_lens, points_list, target_list
 
 
 def default_collate(batch):

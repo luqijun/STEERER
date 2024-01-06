@@ -58,12 +58,12 @@ def train(config, epoch, num_epoch, epoch_iters, num_iters,
     world_size = get_world_size()
 
     for i_iter, batch in enumerate(trainloader):
-        images, label, size, name_idx = batch
+        images, label, size, name_idx, *args = batch
         images = images.to(device)
         for i in range(len(label)):
             label[i] = label[i].to(device)
 
-        result = model(images, label, 'train')
+        result = model(images, label, 'train', args)
         losses=result['losses']
         # import pdb
         # pdb.set_trace()
