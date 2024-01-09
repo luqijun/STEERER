@@ -149,7 +149,7 @@ def main():
         from fvcore.nn.parameter_count import parameter_count_table
         print(parameter_count_table(model))
         dump_input = torch.rand(
-            (1, 3, 768, 1024)
+            (1, 3, 768, 768)
         ).cuda()
         logger.info(flop_count(model.cuda(), dump_input.cuda(),))
         # import pdb
