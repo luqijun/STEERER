@@ -157,7 +157,7 @@ def validate(config, testloader, model, writer_dict, device,
             for i in range(len(label)):
                 label[i] = label[i].to(device)
             # result = model(image, label, 'val')
-            result = patch_forward(model, image, label, num_patches,'val')
+            result = patch_forward(config, model, image, label, num_patches, 'val')
 
 
             losses=result['losses']
@@ -213,7 +213,7 @@ def validate(config, testloader, model, writer_dict, device,
     return print_loss, mae, mse, nae
 
 
-def patch_forward(model, img, dot_map, num_patches,mode):
+def patch_forward(config, model, img, dot_map, num_patches, mode):
     # crop the img and gt_map with a max stride on x and y axis
     # size: HW: __C_NWPU.TRAIN_SIZE
     # stack them with a the batchsize: __C_NWPU.TRAIN_BATCH_SIZE
@@ -223,7 +223,9 @@ def patch_forward(model, img, dot_map, num_patches,mode):
     crop_dots['1'],crop_dots['2'],crop_dots['4'],crop_dots['8'] = [],[],[],[]
     crop_masks['1'],crop_masks['2'],crop_masks['4'],crop_masks['8'] = [], [], [],[]
     b, c, h, w = img.shape
-    rh, rw = 768, 1024
+
+    crop_size = config.test.get('crop_size', (768, 1024))  # default (768, 1024)
+    rh, rw = crop_size
 
     # support for multi-scale patch forward
     for i in range(0, h, rh):
