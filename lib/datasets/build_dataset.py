@@ -4,6 +4,9 @@ def build_dataset(config):
     if config.dataset.name == "SHHA_Chf":
         return build_dataset_shha_chf(config)
 
+    if config.dataset.name == "SHHA_Sim_Match":
+        return build_dataset_shha_chf(config)
+
     # default
     train_dataset = eval('datasets.' + config.dataset.name)(
             root=config.dataset.root,
