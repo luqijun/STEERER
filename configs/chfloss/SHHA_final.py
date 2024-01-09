@@ -119,6 +119,7 @@ train = dict(
 
 test = dict(
     image_size=(1024, 2048),  # height, width
+    crop_size=(192, 192),
     base_size=2048,
     loc_base_size=(768,2048),
     loc_threshold=0.2,
