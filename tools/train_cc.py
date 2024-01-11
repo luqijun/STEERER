@@ -22,7 +22,8 @@ from lib.utils.dist_utils import (
 from mmcv import Config, DictAction
 import lib.datasets as datasets
 from lib.core.criterion import MSE, CrossEntropy, OhemCrossEntropy
-from lib.core.cc_function import train, validate
+from lib.core.cc_function import train
+from lib.core.ValidatorBase import build_validator
 from lib.utils.modelsummary import get_model_summary
 from lib.utils.KPI_pool import Task_KPI_Pool
 from lib.utils.utils import create_logger, random_seed_setting, copy_cur_env
@@ -252,6 +253,7 @@ def main():
             'acc1': ['gt', 'error']},
         maximum_sample=1000, device=device)
     scheduler = build_scheduler(config.lr_config, optimizer, epoch_iters, config.train.end_epoch)
+    validator = build_validator(config)
     for epoch in range(last_epoch, end_epoch):
         if distributed:
             train_sampler.set_epoch(epoch)
@@ -274,7 +276,7 @@ def main():
         if (epoch+1) % bisect_right(config.train.val_span, -epoch) == 0:
             vis_val_dir = train_log_dir + '/vis_val'
             os.makedirs(vis_val_dir, exist_ok=True)
-            valid_loss, mae, mse, nae = validate(config,
+            valid_loss, mae, mse, nae = validator.validate(config,
                                                  testloader, model, writer_dict, device,
                                                  config.test.patch_batch_size,
                                                  vis_val_dir, test_dataset.mean,
