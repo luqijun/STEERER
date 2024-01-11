@@ -3,20 +3,22 @@ import torch.nn as nn
 import torch.nn.functional as F
 from lib.models.backbones.backbone_selector import BackboneSelector
 from lib.models.heads.head_selector import HeadSelector
-# from lib.utils.Gaussianlayer import Gaussianlayer
-from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, GenerateKernelLayer21
+from lib.models.heads.moe import upsample_module
+from lib.utils.Gaussianlayer import Gaussianlayer
+import math
+from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, GenerateKernelLayer18
 import logging
 
-# counter31基础伤改用instance normal
-# 原来的Baseline_Counter38
+# 将每一层向上采用拼接， 高层级特征生成共性特征kernel， 每一层预测Density Map， Similarity Map， Segmentation Map,
+# 直接计算误差和分割误差
 
 def freeze_model(model):
     for (name, param) in model.named_parameters():
         param.requires_grad = False
 
-class SimMatchCounter38(nn.Module):
+class SimMatchCounter31(nn.Module):
     def __init__(self, config=None, weight=200, route_size=(64, 64), device=None):
-        super(SimMatchCounter38, self).__init__()
+        super(SimMatchCounter31, self).__init__()
         self.config = config
         self.device = device
         self.resolution_num = config.resolution_num
@@ -72,7 +74,7 @@ class SimMatchCounter38(nn.Module):
         self.segmentations = nn.Sequential(*seg_layers)
 
         self.kernel_size = 3
-        self.kernel_extractor = GenerateKernelLayer21(self.config, self.kernel_size, self.hidden_channels)
+        self.kernel_extractor = GenerateKernelLayer18(self.config, self.kernel_size, self.hidden_channels)
 
         channel_last_layer = self.config.head.stages_channel[0]
 
@@ -123,8 +125,7 @@ class SimMatchCounter38(nn.Module):
             last_map = None
             seg_map = None
             kernel =  None
-            if in_list[-1].shape[-1] != 24:
-                logging.info(f"===============================Exist different channels: {in_list[-1].shape}===============================")
+            assert in_list[-1].shape[-1] == 24
             for i, in_map in enumerate(in_list[::-1]):
                 # in_map = self.DSNets[i](in_map)
                 if last_map is not None:

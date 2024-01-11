@@ -9,7 +9,7 @@ seed = 3035
 
 network = dict(
     module="sim_match",
-    model="SimMatchCounter38",
+    model="SimMatchCounter31",
     backbone="MocHRBackbone",
     sub_arch='hrnet48',
     counter_type = 'withMOE', #'withMOE' 'baseline'

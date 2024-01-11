@@ -4,7 +4,7 @@ def build_dataset(config):
     if config.dataset.name == "SHHA_Chf":
         return build_dataset_shha_chf(config)
 
-    if config.dataset.name == "SHHA_Sim_Match":
+    if config.dataset.name.find("Sim_Match") != -1:
         return build_dataset_shha_chf(config)
 
     # default
