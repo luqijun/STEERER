@@ -22,7 +22,7 @@ from lib.utils.dist_utils import (
 from mmcv import Config, DictAction
 import lib.datasets as datasets
 from lib.core.criterion import MSE, CrossEntropy, OhemCrossEntropy
-from lib.core.cc_function import train
+from lib.core.TrainerBase import build_trainer
 from lib.core.ValidatorBase import build_validator
 from lib.utils.modelsummary import get_model_summary
 from lib.utils.KPI_pool import Task_KPI_Pool
@@ -253,12 +253,13 @@ def main():
             'acc1': ['gt', 'error']},
         maximum_sample=1000, device=device)
     scheduler = build_scheduler(config.lr_config, optimizer, epoch_iters, config.train.end_epoch)
+    trainer = build_trainer(config)
     validator = build_validator(config)
     for epoch in range(last_epoch, end_epoch):
         if distributed:
             train_sampler.set_epoch(epoch)
         if epoch >= config.train.end_epoch:
-            train(config, epoch - config.train.end_epoch,
+            trainer.train(config, epoch - config.train.end_epoch,
                   config.train.extra_epoch, epoch_iters,
                   extra_iters,
                   extra_trainloader, optimizer, scheduler ,
@@ -266,7 +267,7 @@ def main():
         else:
             vis_train_dir = train_log_dir + '/vis_train'
             os.makedirs(vis_train_dir, exist_ok=True)
-            train(config, epoch, config.train.end_epoch,
+            trainer.train(config, epoch, config.train.end_epoch,
                   epoch_iters, num_iters,
                   trainloader, optimizer,scheduler, model, writer_dict,
                   device, vis_train_dir, train_dataset.mean,
