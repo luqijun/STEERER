@@ -14,6 +14,7 @@ from .shhb import SHHB as SHHB
 from .shha import SHHA as SHHA
 from .shha_chf import SHHA_Chf as SHHA_Chf
 from .shha_sim_match import SHHA_Sim_Match as SHHA_Sim_Match
+from .shha_sim_match_chf import SHHA_Sim_Match_Chf as SHHA_Sim_Match_Chf
 from .qnrf import QNRF as QNRF
 from .trancos import TRANCOS as TRANCOS
 from .mtc import MTC as MTC
