@@ -85,6 +85,7 @@ train = dict(
     flip=True,
     multi_scale=True,
     scale_factor=(0.5, 1/0.5),
+    # val_span = [-2000],
     val_span = [-2000, -1800, 
                 -1500, -1500,
                 -1400, -1400,
