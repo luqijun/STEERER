@@ -82,7 +82,7 @@ train = dict(
     counter='normal',
     image_size=(768, 768),  # height width
     route_size=(256, 256),  # height, width
-    base_size=(768, 768), # 2048,
+    base_size=2048, #===================================base_size决定最大尺寸=====================================
     batch_size_per_gpu=6,
     shuffle=True,
     begin_epoch=0,
@@ -119,7 +119,7 @@ test = dict(
     validator='Validator_SMC',
     image_size=(1024, 2048),  # height, width
     crop_size=(768, 768), # crop size: height, width
-    base_size=(768, 768), # 2048,
+    base_size=2048, #===================================base_size决定最大尺寸=====================================
     loc_base_size=(768,2048),
     loc_threshold=0.2,
     batch_size_per_gpu=1,
