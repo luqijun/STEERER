@@ -3,8 +3,8 @@ import importlib
 def build_counter(config):
 
     # Baseline_Counter(config.network,config.dataset.den_factor,config.train.route_size,device)
-    module_name = config.network.module
-    model_name = config.network.model
+    module_name = config.network.get("module", None)
+    model_name = config.network.get("model", None)
 
     # 默认名称
     if not module_name:
