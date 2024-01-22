@@ -332,8 +332,8 @@ class one_branch_output(nn.Module):
                     last_stage = F.interpolate(last_stage, scale_factor=2,mode='nearest')
 
 
-                    last_stage_small = self.modulation_layer_small(last_stage)
-                    last_stage_large = self.modulation_layer_big(last_stage)
+                    last_stage_small = self.modulation_layer_small(last_stage) # UFN
+                    last_stage_large = self.modulation_layer_big(last_stage) # CFN
 
                     last_stage_small = last_stage_small*mask[:,0,:,:].unsqueeze(1)
                     last_stage_large = last_stage_large*mask[:,1,:,:].unsqueeze(1)

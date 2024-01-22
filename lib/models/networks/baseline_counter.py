@@ -251,7 +251,7 @@ class Baseline_Counter(nn.Module):
             pre, gt= pre.detach(), gt.detach()
             kernel = (int(route_size[0]/(2**i)), int(route_size[1]/(2**i)))
 
-            weight = torch.full(kernel,1/(kernel[0]*kernel[1])).expand(1,pre.size(1),-1,-1)
+            weight = torch.full(kernel, 1/(kernel[0]*kernel[1])).expand(1, pre.size(1), -1, -1)
             weight =  nn.Parameter(data=weight, requires_grad=False).to(self.device)
 
             error= (pre - gt)**2
