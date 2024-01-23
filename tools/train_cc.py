@@ -149,8 +149,9 @@ def main():
         from fvcore.nn.flop_count import flop_count
         from fvcore.nn.parameter_count import parameter_count_table
         print(parameter_count_table(model))
+        h, w = config.train.image_size
         dump_input = torch.rand(
-            (1, 3, 768, 768)
+            (1, 3, h, w)
         ).cuda()
         logger.info(flop_count(model.cuda(), dump_input.cuda(),))
         # import pdb
