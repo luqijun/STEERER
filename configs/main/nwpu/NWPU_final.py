@@ -1,5 +1,5 @@
 gpus = (0, 1,)
-log_dir = 'exp'
+log_dir = 'exp/main'
 workers = 6
 print_freq = 30
 seed = 3035
@@ -73,7 +73,7 @@ train = dict(
     image_size=(768, 768),  # height width
     route_size=(256, 256),  # height, width
     base_size=None,
-    batch_size_per_gpu=8,
+    batch_size_per_gpu=6,
     shuffle=True,
     begin_epoch=0,
     end_epoch=800,
