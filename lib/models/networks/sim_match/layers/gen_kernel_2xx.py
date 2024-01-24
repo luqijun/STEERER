@@ -9,6 +9,49 @@ from .trans_decoder_wrapper import TransDecoderWrapperLayer2
 from .twoway_transformer import TwoWayTransformer
 
 
+def make_kernel_extractor(config, hidden_channels, dilation_num=3):
+    # extract kernerls
+    conv1 = make_conv_layer(hidden_channels, 3, 2)  # 11*11
+    conv2 = make_conv_layer(hidden_channels, 3, 1)  # 9*9
+    conv3 = make_conv_layer(hidden_channels, 3, 1)  # 7*7
+    conv4 = make_conv_layer(hidden_channels, 3, 1)  # 5*5
+    conv5 = make_conv_layer(hidden_channels, 3, 1)  # 3*3
+
+    # conv6 = self.make_conv_layer(hidden_channels, 3, 1, p1=1, p2=0)  # 1*1
+    kernel_blocks = [conv1, conv2, conv3, conv4, conv5]
+
+    # 创建不同的dialation kernel
+    extra_conv_group = []
+    for i in range(dilation_num - 1):
+        cov_list = nn.Sequential(*[make_conv_layer(hidden_channels, 3, 1, p1=1, p2=1) for i, c in
+                                   enumerate(config.head.stages_channel)])
+        extra_conv_group.append(cov_list)
+
+    return kernel_blocks, extra_conv_group
+
+
+def make_conv_layer(hidden_channels, k, s, p1=0, p2=1):
+    return nn.Sequential(*[nn.Conv2d(hidden_channels, hidden_channels, k, s, padding=p1),
+                           nn.BatchNorm2d(hidden_channels),
+                           nn.ReLU(True),
+                           nn.Conv2d(hidden_channels, hidden_channels, 3, 1, padding=p2)])
+
+
+def make_head_layer(input_cahnnels=1, hidden_channels=3):
+    return nn.Sequential(*[nn.Conv2d(input_cahnnels, hidden_channels, 3, 1, 1),
+                           nn.ReLU(True),
+                           nn.Upsample(scale_factor=2, mode='bilinear'),
+                           nn.Conv2d(hidden_channels, hidden_channels, 3, 1, 1),
+                           nn.ReLU(True),
+                           nn.Upsample(scale_factor=2, mode='bilinear'),
+                           nn.Conv2d(hidden_channels, 1, 3, 1, 1)])
+
+
+def freeze_model(model):
+    for (name, param) in model.named_parameters():
+        param.requires_grad = False
+
+
 class GenerateKernelLayer201(nn.Module):
     def __init__(self, config, kernel_size=3, hidden_channels=256):
         super(GenerateKernelLayer201, self).__init__()
@@ -34,7 +77,7 @@ class GenerateKernelLayer201(nn.Module):
 
         # 初级的提取
         self.dilation_num = 1
-        kernel_blocks, extra_conv_kernels = self.make_kernel_extractor(hidden_channels, dilation_num=self.dilation_num)
+        kernel_blocks, extra_conv_kernels = make_kernel_extractor(config, hidden_channels, dilation_num=self.dilation_num)
         self.kernel_blocks = nn.Sequential(*kernel_blocks)
         self.extra_conv_kernels = nn.Sequential(*extra_conv_kernels)
 
@@ -52,15 +95,15 @@ class GenerateKernelLayer201(nn.Module):
         self.kernel_tran_layers_list = nn.Sequential(*kernel_tran_layers_list)
 
         # upsample
-        self.upsample_block = self.make_head_layer(self.dilation_num, self.dilation_num)
-        self.upsample_block_copy = self.make_head_layer(self.dilation_num, self.dilation_num)
+        self.upsample_block = make_head_layer(self.dilation_num, self.dilation_num)
+        self.upsample_block_copy = make_head_layer(self.dilation_num, self.dilation_num)
 
         # _initialize_weights(self)
 
     def forward(self, x):
 
         self.upsample_block_copy.load_state_dict(self.upsample_block.state_dict())
-        self.freeze_model(self.upsample_block_copy)
+        freeze_model(self.upsample_block_copy)
 
         x = self.dsnet(x)
         src = x
@@ -129,42 +172,42 @@ class GenerateKernelLayer201(nn.Module):
         return output
 
 
-    def make_kernel_extractor(self, hidden_channels, dilation_num = 3):
+
+
+
+class GenerateKernelLayer202(GenerateKernelLayer201):
+    def __init__(self, config, kernel_size=3, hidden_channels=256):
+        super(GenerateKernelLayer202, self).__init__(config, kernel_size, hidden_channels)
+        # 初级的提取
+        self.dilation_num = 1
+        kernel_blocks, extra_conv_kernels = self.make_kernel_extractor(config, hidden_channels,
+                                                                  dilation_num=self.dilation_num)
+        self.kernel_blocks = nn.Sequential(*kernel_blocks)
+        self.extra_conv_kernels = nn.Sequential(*extra_conv_kernels)
+        pass
+
+    def make_kernel_extractor(self, config, hidden_channels, dilation_num=3):
+
+        # channels = hidden_channels // 3
+        # pass
 
         # extract kernerls
-        conv1 = self.make_conv_layer(hidden_channels, 3, 2)  # 11*11
-        conv2 = self.make_conv_layer(hidden_channels, 3, 1)  # 9*9
-        conv3 = self.make_conv_layer(hidden_channels, 3, 1)  # 7*7
-        conv4 = self.make_conv_layer(hidden_channels, 3, 1)  # 5*5
-        conv5 = self.make_conv_layer(hidden_channels, 3, 1)  # 3*3
+        avg_pool =  nn.AvgPool2d(2, 2)
+        conv1 = make_conv_layer(hidden_channels, 3, 1, 1)  # 3*3
+        # conv2 = make_conv_layer(hidden_channels, 3, 1)  # 9*9
+        # conv3 = make_conv_layer(hidden_channels, 3, 1)  # 7*7
+        # conv4 = make_conv_layer(hidden_channels, 3, 1)  # 5*5
+        # conv5 = make_conv_layer(hidden_channels, 3, 1)  # 3*3
 
         # conv6 = self.make_conv_layer(hidden_channels, 3, 1, p1=1, p2=0)  # 1*1
-        kernel_blocks = [conv1, conv2, conv3, conv4, conv5]
+        # kernel_blocks = [conv1, conv2, conv3, conv4, conv5]
+        kernel_blocks = [avg_pool, conv1]
 
         # 创建不同的dialation kernel
         extra_conv_group = []
-        for i in range(dilation_num-1):
-            cov_list = nn.Sequential(*[self.make_conv_layer(hidden_channels, 3, 1, p1=1, p2=1) for i, c in
-                                            enumerate(self.config.head.stages_channel)])
+        for i in range(dilation_num - 1):
+            cov_list = nn.Sequential(*[make_conv_layer(hidden_channels, 3, 1, p1=1, p2=1) for i, c in
+                                       enumerate(config.head.stages_channel)])
             extra_conv_group.append(cov_list)
 
         return kernel_blocks, extra_conv_group
-
-    def make_conv_layer(self, hidden_channels, k, s, p1=0, p2=1):
-        return nn.Sequential(*[nn.Conv2d(hidden_channels, hidden_channels, k, s, padding=p1),
-                               nn.BatchNorm2d(hidden_channels),
-                               nn.ReLU(True),
-                               nn.Conv2d(hidden_channels, hidden_channels, 3, 1, padding=p2)])
-
-    def make_head_layer(self, input_cahnnels=1, hidden_channels=3):
-        return nn.Sequential(*[nn.Conv2d(input_cahnnels, hidden_channels, 3, 1, 1),
-                               nn.ReLU(True),
-                               nn.Upsample(scale_factor=2, mode='bilinear'),
-                               nn.Conv2d(hidden_channels, hidden_channels, 3, 1, 1),
-                               nn.ReLU(True),
-                               nn.Upsample(scale_factor=2, mode='bilinear'),
-                               nn.Conv2d(hidden_channels, 1, 3, 1, 1)])
-
-    def freeze_model(self, model):
-        for (name, param) in model.named_parameters():
-            param.requires_grad = False
