@@ -25,7 +25,7 @@ class ValidatorBase:
             for idx, batch in enumerate(testloader):
                 # if _>100:
                 #     break
-                image, label, _, name = batch
+                image, label, _, name, *args = batch
                 image = image.to(device)
                 for i in range(len(label)):
                     label[i] = label[i].to(device)
