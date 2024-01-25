@@ -9,8 +9,7 @@ import math
 from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, GenerateKernelLayer202
 import logging
 
-# 将每一层向上采用拼接， 高层级特征生成共性特征kernel， 每一层预测Density Map， Similarity Map， Segmentation Map,
-# 直接计算误差和分割误差
+# 在201基础上，使用（192，192）输入，通过avgPooling+conv生成卷积核，效果很差
 
 def freeze_model(model):
     for (name, param) in model.named_parameters():

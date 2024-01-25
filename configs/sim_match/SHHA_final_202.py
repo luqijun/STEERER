@@ -4,7 +4,7 @@
 gpus = (0, 1,)
 log_dir = 'exp/sim_match'
 workers = 6
-print_freq = 30
+print_freq = 5
 seed = 3035
 
 network = dict(
@@ -39,7 +39,7 @@ network = dict(
     )
 
 dataset = dict(
-    name='SHHA_Sim_Match_Pad',
+    name='SHHA_Sim_Match',
     root='ProcessedData/SHHA/',
     test_set='test.txt',
     train_set='train.txt',
@@ -75,15 +75,15 @@ lr_config = dict(
 log_config = dict(
     interval=50,
     hooks=[
-        dict(type='TextLoggerHook'),  
+        dict(type='TextLoggerHook'),
     ])
 
 train = dict(
     counter='normal',
-    image_size=(128, 128),  # height width
+    image_size=(192, 192),  # height width
     route_size=(256, 256),  # height, width
     base_size=2048,
-    batch_size_per_gpu=6,
+    batch_size_per_gpu=32,
     shuffle=True,
     begin_epoch=0,
     end_epoch=2000,
@@ -117,7 +117,7 @@ train = dict(
 
 test = dict(
     image_size=(1024, 2048),  # height, width
-    crop_size=(768, 1024), # crop size: height, width
+    crop_size=(192, 192), # crop size: height, width
     base_size=2048,
     loc_base_size=(768,2048),
     loc_threshold=0.2,
