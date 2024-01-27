@@ -192,7 +192,7 @@ class SHHA_Sim_Match_LevelMap(BaseDataset):
         else:
             real_w = w
 
-        crop_h, crop_w = 768, 768
+        crop_h, crop_w = self.crop_size
         if real_h < crop_h:
             logging.info(
                 f"=========================test: padd image H from ({real_h}) to ({crop_h})=========================")
