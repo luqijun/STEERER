@@ -63,7 +63,7 @@ def build_dataset_shha_chf(config):
         multi_scale=False,
         flip=False,
         base_size=config.test.base_size,
-        crop_size=(None, None),
+        crop_size=config.train.image_size,
         min_unit=config.train.route_size,
         downsample_rate=1)
     return train_dataset, test_dataset
