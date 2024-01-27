@@ -61,9 +61,9 @@ class TwoWayTransformer(nn.Module):
         self,
         image_embedding: Tensor,
         image_pe: Tensor,
-        point_embedding: Tensor,
-        attn_sim: Tensor,
-        target_embedding=None
+        query_embedding: Tensor,
+        target_embedding= None,
+        attn_sim: Tensor=None,
     ) -> Tuple[Tensor, Tensor]:
         """
         Args:
@@ -71,7 +71,7 @@ class TwoWayTransformer(nn.Module):
             B x embedding_dim x h x w for any h and w.
           image_pe (torch.Tensor): the positional encoding to add to the image. Must
             have the same shape as image_embedding.
-          point_embedding (torch.Tensor): the embedding to add to the query points.
+          query_embedding (torch.Tensor): the embedding to add to the query points.
             Must have shape B x N_points x embedding_dim for any N_points.
 
         Returns:
@@ -84,7 +84,7 @@ class TwoWayTransformer(nn.Module):
         image_pe = image_pe.flatten(2).permute(0, 2, 1)
 
         # Prepare queries
-        queries = point_embedding
+        queries = query_embedding
         keys = image_embedding
 
         # Apply transformer blocks and final layernorm
@@ -94,13 +94,13 @@ class TwoWayTransformer(nn.Module):
             queries, keys = layer(
                 queries=queries,
                 keys=keys,
-                query_pe=point_embedding,
+                query_pe=query_embedding,
                 key_pe=image_pe,
                 attn_sim=attn_sim,
             )
 
         # Apply the final attention layer from the points to the image
-        q = queries + point_embedding
+        q = queries + query_embedding
         k = keys + image_pe
 
         if target_embedding is not None:

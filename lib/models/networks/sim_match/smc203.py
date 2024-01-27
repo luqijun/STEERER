@@ -9,7 +9,7 @@ import math
 from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, GenerateKernelLayer201
 import logging
 
-# 在201基础上，假如level_map
+# 在201基础上，加入level_map
 
 def freeze_model(model):
     for (name, param) in model.named_parameters():
@@ -52,7 +52,7 @@ class SMC203(nn.Module):
             seg_layers.append(
                 SegmentationLayer(self.hidden_channels, 1))
             seg_level_layers.append(
-                SegmentationLayer(self.hidden_channels, 6))
+                SegmentationLayer(self.hidden_channels, self.config.seg_levels_num))
         self.seg_crowds = nn.Sequential(*seg_layers)
         self.seg_levels = nn.Sequential(*seg_level_layers)
 
@@ -161,30 +161,31 @@ class SMC203(nn.Module):
 
             # =============================计算MSE、分割、等级损失==============================
             if mode == 'train':
-                level_nums = 5
+                level_nums = self.config.seg_levels_num
                 gt_seg_level_map = args[0][0]
-                gt_seg_level_map = (gt_seg_level_map * level_nums).long()  # 将标签值乘以5（因为有6个类别）然后向下取整，得到每个像素的类别标签
-                gt_seg_level_map = torch.clamp(gt_seg_level_map, 0, level_nums)
+                gt_seg_level_map = (gt_seg_level_map * level_nums).long()  # 将标签值乘以level_nums（因为有level_nums个类别）然后向下取整，得到每个像素的类别标签
+                gt_seg_level_map = torch.clamp(gt_seg_level_map, 0, level_nums - 1)
 
             for i in range(len(out_list)):
                 tmp_loss =0
 
-                # level map损失
+
                 if mode == 'train':
+                    # level map损失
                     temp_gt_seg_level_map = gt_seg_level_map.float()
                     if temp_gt_seg_level_map.shape[2:] != seg_level_map_list[i].shape[i]:
                         temp_gt_seg_level_map = F.interpolate(temp_gt_seg_level_map.unsqueeze(1), seg_level_map_list[i].shape[2:],
                                                               mode='nearest').squeeze(1)
                     tmp_loss += self.ce_loss(seg_level_map_list[i], temp_gt_seg_level_map.long())  # 使用交叉熵损失函数
 
-                # 分割图损失
-                amp = self.sgm(fg_list[i])
-                amp_gt_us = fg_mask_list[i].float()
-                if amp_gt_us.shape[2:] != amp.shape[2:]:
-                    amp_gt_us = F.interpolate(amp_gt_us, amp.shape[2:], mode='nearest')
-                ce_loss = (amp_gt_us * torch.log(amp + 1e-10) + (1 - amp_gt_us) * torch.log(1 - amp + 1e-10)) * -1
-                tmp_loss += torch.mean(ce_loss)
-                #tmp_loss += self.bce_loss(fg_list[i], amp_gt_us)
+                    # 分割图损失
+                    amp = self.sgm(fg_list[i])
+                    amp_gt_us = fg_mask_list[i].float()
+                    if amp_gt_us.shape[2:] != amp.shape[2:]:
+                        amp_gt_us = F.interpolate(amp_gt_us, amp.shape[2:], mode='nearest')
+                    ce_loss = (amp_gt_us * torch.log(amp + 1e-10) + (1 - amp_gt_us) * torch.log(1 - amp + 1e-10)) * -1
+                    tmp_loss += torch.mean(ce_loss)
+                    #tmp_loss += self.bce_loss(fg_list[i], amp_gt_us)
 
                 label = label_list[i]
                 out_map_list = []
@@ -202,34 +203,35 @@ class SMC203(nn.Module):
                 sim_map = sim_map_list[i]
                 if sim_map is not None:
 
-                    if sim_map.shape[2:] != label.shape[2:]:
-                        sim_map = F.interpolate(sim_map, label.shape[2:], mode='bilinear')
-                        # label = F.interpolate(label, sim_map.shape[2:], mode='bilinear')
-
-                    sim_map_loss = 0
-                    _ , seg_mask = torch.max(seg_level_map_list[i], dim=1)
-                    seg_mask =  F.interpolate(seg_mask.unsqueeze(1).float(), label.shape[2:], mode='nearest')
-                    for j in range(seg_level_map_list[i].shape[1]):
-                        # mask = torch.zeros_like(seg_mask)
-                        # mask[seg_mask == j] = 1
-                        # sim_map_loss += self.mse_loss(sim_map * mask, label * mask)
-                        mask = seg_mask == j
-                        pred = sim_map[mask]
-                        target = label[mask]
-                        if len(pred) > 0:
-                            sim_map_loss += self.mse_loss(pred, target)
-                    tmp_loss += sim_map_loss
-                    out_map_list.append(sim_map)
-
+                    # 在不同的密度等级内计算损失
                     # if sim_map.shape[2:] != label.shape[2:]:
-                    #     # label = F.interpolate(label, sim_map.shape[2:], mode='bilinear')
                     #     sim_map = F.interpolate(sim_map, label.shape[2:], mode='bilinear')
+                    #     # label = F.interpolate(label, sim_map.shape[2:], mode='bilinear')
                     #
-                    # Le_Loss2 = self.mse_loss(sim_map, label)
-                    # Lc_Loss2 = self.cal_lc_loss(sim_map, label)
-                    # hard_loss2 = Le_Loss2 + lbda * Lc_Loss2
-                    # tmp_loss += hard_loss2
+                    # sim_map_loss = 0
+                    # _ , seg_mask = torch.max(seg_level_map_list[i], dim=1)
+                    # seg_mask =  F.interpolate(seg_mask.unsqueeze(1).float(), label.shape[2:], mode='nearest')
+                    # for j in range(seg_level_map_list[i].shape[1]):
+                    #     # mask = torch.zeros_like(seg_mask)
+                    #     # mask[seg_mask == j] = 1
+                    #     # sim_map_loss += self.mse_loss(sim_map * mask, label * mask)
+                    #     mask = seg_mask == j
+                    #     pred = sim_map[mask]
+                    #     target = label[mask]
+                    #     if len(pred) > 0:
+                    #         sim_map_loss += self.mse_loss(pred, target)
+                    # tmp_loss += sim_map_loss
                     # out_map_list.append(sim_map)
+
+                    if sim_map.shape[2:] != label.shape[2:]:
+                        # label = F.interpolate(label, sim_map.shape[2:], mode='bilinear')
+                        sim_map = F.interpolate(sim_map, label.shape[2:], mode='bilinear')
+
+                    Le_Loss2 = self.mse_loss(sim_map, label)
+                    Lc_Loss2 = self.cal_lc_loss(sim_map, label)
+                    hard_loss2 = Le_Loss2 + lbda * Lc_Loss2
+                    tmp_loss += hard_loss2
+                    out_map_list.append(sim_map)
 
                 # 计算trans_map损失
                 trans_map = trans_output_list[i]

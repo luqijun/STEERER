@@ -34,8 +34,10 @@ network = dict(
         in_channels=96,
         stages_channel = [384, 192, 96, 48],
         inter_layer=[64,32,16],
-        out_channels=1)
+        out_channels=1),
 
+    # 分割等级
+    seg_levels_num = 2
     )
 
 dataset = dict(
