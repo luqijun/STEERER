@@ -275,6 +275,23 @@ def main():
                   train_dataset.std, task_KPI,train_dataset)
         if epoch >=5:
             train_dataset.AI_resize =False
+
+        def save_checkpoint(filename):
+            torch.save({
+                'epoch': epoch + 1,
+                'best_MAE': best_mae,
+                'best_MSE': best_mse,
+                'state_dict': model.module.state_dict(),
+                'optimizer': optimizer.state_dict(),
+            }, os.path.join(train_log_dir, filename))
+
+        # 默认保存训练模型频次
+        save_freq  = config.train.get('save_freq', 10)
+        if (epoch+1) % save_freq == 0:
+            logger.info('=> saving checkpoint to {}'.format(train_log_dir + 'checkpoint.pth.tar'))
+            save_checkpoint('checkpoint.pth.tar')
+
+        # evaluate
         if (epoch+1) % bisect_right(config.train.val_span, -epoch) == 0:
             vis_val_dir = train_log_dir + '/vis_val'
             os.makedirs(vis_val_dir, exist_ok=True)
@@ -287,18 +304,7 @@ def main():
                 f.write(json.dumps(train_dataset.resize_memory_pool, cls=NpEncoder))
 
             if args.local_rank == 0:
-                logger.info('=> saving checkpoint to {}'.format(
-                    train_log_dir + 'checkpoint.pth.tar'))
-
-                def save_checkpoint(filename):
-                    torch.save({
-                        'epoch': epoch + 1,
-                        'best_MAE': best_mae,
-                        'best_MSE': best_mse,
-                        'state_dict': model.module.state_dict(),
-                        'optimizer': optimizer.state_dict(),
-                    }, os.path.join(train_log_dir, filename))
-
+                logger.info('=> saving checkpoint to {}'.format(train_log_dir + 'checkpoint.pth.tar'))
                 save_checkpoint('checkpoint.pth.tar')
 
                 pth_file_name = os.path.join(
@@ -319,35 +325,6 @@ def main():
                     best_mse_vis_val_dir = train_log_dir + '/vis_val_best_mse'
                     copy_cur_env(vis_val_dir, best_mse_vis_val_dir, [])
 
-
-                # if mae < best_mae:
-                #     best_mae = mae
-                #     torch.save(
-                #         model.module.state_dict(),
-                #         os.path.join(
-                #             train_log_dir,
-                #             'Ep_' +
-                #             str(epoch) +
-                #             '_mae_' +
-                #             str(mae) +
-                #             '_mse_' +
-                #             str(mse) +
-                #             '.pth'))
-                # if mse < best_mse:
-                #     best_mse = mse
-                #     torch.save(
-                #         model.module.state_dict(),
-                #         os.path.join(
-                #             train_log_dir,
-                #             'Ep_' +
-                #             str(epoch) +
-                #             '_mae_' +
-                #             str(mae) +
-                #             '_mse_' +
-                #             str(mse) +
-                #             '.pth'))
-
-
                 msg = 'Loss: {:.3f}, MAE: {: 4.2f}, Best_MAE: {: 4.4f} ' \
                       'MSE: {: 4.4f},Best_MSE: {: 4.4f}'.format(
                           valid_loss, mae, best_mae, mse, best_mse)
@@ -355,9 +332,7 @@ def main():
                 # logging.info(IoU_array)
 
                 if epoch == end_epoch - 1:
-                    torch.save(model.module.state_dict(),
-                               os.path.join(train_log_dir, 'final_state.pth'))
-
+                    torch.save(model.module.state_dict(), os.path.join(train_log_dir, 'final_state.pth'))
                     writer_dict['writer'].close()
                     end = timeit.default_timer()
                     logger.info('Hours: %d' % np.int32((end - start) / 3600))
