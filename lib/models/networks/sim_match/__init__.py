@@ -5,3 +5,4 @@ from .smc201 import *
 from .smc202 import *
 from .smc203 import *
 from .smc204 import *
+from .smc205 import *

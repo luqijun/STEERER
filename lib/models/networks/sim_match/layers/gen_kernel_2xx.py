@@ -171,7 +171,7 @@ class GenerateKernelLayer202(GenerateKernelLayer201):
         return kernel_blocks, extra_conv_group
 
 
-# 201基础上，提取一个rectangle卷积核作为人头的参考特征
+# 使用相似特征库sim_feature_bank，使用rectangle window
 class GenerateKernelLayer204(nn.Module):
     def __init__(self, config, kernel_size=3, hidden_channels=256):
         super(GenerateKernelLayer204, self).__init__()
@@ -228,6 +228,83 @@ class GenerateKernelLayer204(nn.Module):
 
 
 
+# 使用相似特征库sim_feature_bank，使用rectangle window
+class GenerateKernelLayer205(nn.Module):
+    def __init__(self, config, kernel_size=3, hidden_channels=256):
+        super(GenerateKernelLayer205, self).__init__()
+        self.load_model = None
+        self.config = config
+        self.kernel_size = kernel_size
+        self.hidden_channels = hidden_channels
+
+        # two way transformer
+        # self.twoway_trans = TwoWayTransformer(depth=2,
+        #                                       embedding_dim=hidden_channels,
+        #                                       mlp_dim=2048,
+        #                                       num_heads=8,)
+
+        self.window_sizes = [(32, 16), (16, 8)]
+
+        # position encoding
+        self.pe_layer = PositionEmbeddingRandom(hidden_channels // 2)
+
+        # 提取卷积核
+        self.conv_kernel_extrator = make_kernel_extractor_adaptive(hidden_channels, (5, 5))
+
+        # sim_feature_bank
+        num_sim_features = 9
+        self.sim_feature_bank = nn.Parameter(torch.randn((num_sim_features, hidden_channels)), requires_grad=True)
+        self.transformer = nn.Transformer(hidden_channels, 8, batch_first=True)
+
+        # upsample
+        self.upsample_block = make_head_layer(self.hidden_channels, self.hidden_channels // 2)
+        self.upsample_block_2 = make_head_layer(1, 3)
+
+    def forward(self, x, x_with_seg, level):
+
+        src = x
+        src_pos = self.pe_layer(src.shape[-2:]).unsqueeze(0)
+        src = src + src_pos
+        src = src.permute(0, 2, 3, 1)
+        B, H, W, C = src.shape
+
+        kernel = self.conv_kernel_extrator(x_with_seg).flatten(-2).permute(0, 2, 1)
+
+
+        output = src
+        for i, window_size in enumerate(self.window_sizes):
+
+            win_w = window_size[0] // 2**level
+            win_h = window_size[1] // 2**level
+
+            # Split into windows
+            output, pad_hw = window_partition(output, (win_h, win_w)) # [B * num_windows, win_h, win_w, C].
+            output = output.flatten(1, 2)
+
+            num_wins = output.shape[0] // B
+            tgt_pos = self.pe_layer((3, 3)).unsqueeze(0).flatten(-2).permute(0, 2, 1)
+            tgt = self.sim_feature_bank.unsqueeze(0) + kernel + tgt_pos
+            tgt = tgt.unsqueeze(1).expand(-1, num_wins, -1, -1).flatten(0, 1)
+
+            # Use transformer to update sim_feature_bank
+            output = self.transformer(tgt, output)
+            output = output.view(-1, win_h, win_w, C)
+            output = window_unpartition(output, (win_h, win_w), pad_hw, (H, W))
+
+        # get sim map by transformer ouput
+        output = output.permute(0, 3, 1, 2)
+        sim_map1 = self.upsample_block(output)
+
+        # get sim map by conv
+        # src = src.permute(0, 3, 1, 2)
+        # kernel = (kernel + self.sim_feature_bank.unsqueeze(0)).permute(0, 2, 1).reshape(1, C, 3, 3)
+        # output2 = F.conv2d(src, kernel, stride=1, padding=1)
+        # sim_map2 = self.upsample_block_2(output2)
+
+        return sim_map1, None # sim_map2
+
+
+
 # ==================================================================================分隔线==============================================================================================================
 
 def window_partition(x: torch.Tensor, window_size: Tuple[int, int]) -> Tuple[torch.Tensor, Tuple[int, int]]:
@@ -280,6 +357,15 @@ def window_unpartition(
     if Hp > H or Wp > W:
         x = x[:, :H, :W, :].contiguous()
     return x
+
+
+def make_kernel_extractor_adaptive(hidden_channels, feature_size=(7, 7)):
+
+    return nn.Sequential(*[nn.AdaptiveAvgPool2d(output_size=feature_size),
+                           nn.Conv2d(hidden_channels, hidden_channels // 2, 3, 1),
+                           nn.BatchNorm2d(hidden_channels // 2),
+                           nn.ReLU(True),
+                           nn.Conv2d(hidden_channels // 2, hidden_channels, 3, 1, padding=1)])
 
 
 def make_kernel_extractor_rect2x3(config, hidden_channels, dilation_num=3):
