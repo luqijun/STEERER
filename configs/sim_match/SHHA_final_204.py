@@ -86,7 +86,7 @@ train = dict(
     image_size=(256, 256),  # height width
     route_size=(256, 256),  # height, width
     base_size=2048,
-    batch_size_per_gpu=1,
+    batch_size_per_gpu=8,
     shuffle=True,
     begin_epoch=0,
     end_epoch=2000,
@@ -97,18 +97,8 @@ train = dict(
     flip=True,
     multi_scale=True,
     scale_factor=(0.5, 1/0.5),
-    # val_span=[-2000], # 测试用
-    val_span=[-2000, -1800,
-              -1500, -1500,
-              -1400, -1400,
-              -1300, -1300, -1300, -1300, -1300, -1300, -1300, -1300, -1300, -1300,
-              -1200, -1200, -1200, -1200, -1200, -1200, -1200, -1200, -1200, -1200,
-              -1200, -1200, -1200, -1200, -1200, -1200, -1200, -1200, -1200, -1200,
-              -1100, -1100, -1100, -1100, -1100, -1100, -1100, -1100, -1100, -1100,
-              -1100, -1100, -1100, -1100, -1100, -1100, -1100, -1100, -1100, -1100,
-              -1100, -1100, -1100, -1100, -1100, -1100, -1100, -1100, -1100, -1100,
-              -1000, -1000,
-              -800, -800,
+    # val_span=[-2000], # 测试用\
+    val_span=[-800, -700,
               -600, -600,
               -400, -400,
               -200, -200,
@@ -120,7 +110,7 @@ train = dict(
 
 test = dict(
     image_size=(1024, 2048),  # height, width
-    crop_size=(768, 768), # crop size: height, width
+    crop_size=(256, 256), # crop size: height, width
     base_size=2048,
     loc_base_size=(768,2048),
     loc_threshold=0.2,
@@ -128,7 +118,6 @@ test = dict(
     patch_batch_size=16,
     flip_test=False,
     multi_scale=False,
-
 
     # For crowd counting
     # model_file= './exp/SHHA/MocHRBackbone_hrnet48/SHHA_HR_2022-10-25-20-1_251_mae_54.5_mse_86.9/Ep_251_mae_54.571960030021245_mse_86.92610575458059.pth'
