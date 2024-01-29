@@ -209,6 +209,88 @@ import cv2
 from PIL import Image
 import torch.nn.functional as F
 
+
+def save_results_more_with_seg_map(iter, exp_path, img0,
+                                   pre_map0, gt_map0,
+                                   pre_cnt, gt_cnt,
+                                   pre_points=None, gt_points=None,
+                                   pre_seg_map0=None, gt_seg_map0=None,
+                                   pre_seg_level_map0=None, gt_seg_level_map0=None):  # , flow):
+    # gt_cnt = gt_map0.sum().item()
+    # pre_cnt = pre_map0.sum().item()
+    pil_to_tensor = standard_transforms.ToTensor()
+    tensor_to_pil = standard_transforms.ToPILImage()
+
+    UNIT_H, UNIT_W = img0.size(1), img0.size(2)
+
+    img0 = img0.detach().to('cpu')
+    pre_map0 = pre_map0.detach().to('cpu')
+    gt_map0 = gt_map0.detach().to('cpu')
+
+    pre_map0 = F.interpolate(pre_map0.unsqueeze(0), size=(UNIT_H, UNIT_W)).squeeze(0).numpy()
+    gt_map0 = F.interpolate(gt_map0.unsqueeze(0), size=(UNIT_H, UNIT_W)).squeeze(0).numpy()
+
+    pil_input0 = tensor_to_pil(img0)
+    gt_color_map = cv2.applyColorMap((255 * gt_map0 / (gt_map0.max() + 1e-10)).astype(np.uint8).squeeze(), cv2.COLORMAP_JET)
+    pre_color_map = cv2.applyColorMap((255 * pre_map0 / (pre_map0.max() + 1e-10)).astype(np.uint8).squeeze(), cv2.COLORMAP_JET)
+
+    # mask_color_map = cv2.applyColorMap((255 * tensor[8]).astype(np.uint8).squeeze(), cv2.COLORMAP_JET)
+    RGB_R = (255, 0, 0)
+    RGB_G = (0, 255, 0)
+
+    BGR_R = (0, 0, 255)  # BGR
+    BGR_G = (0, 255, 0)  # BGR
+    thickness = 3
+    pil_input0 = np.array(pil_input0)
+
+    if pre_points is not None:
+        for i, point in enumerate(pre_points, 0):
+            point = point.astype(np.int32)
+            point = (point[0], point[1])
+            cv2.drawMarker(pil_input0, point, RGB_G, markerType=cv2.MARKER_CROSS, markerSize=15, thickness=3)
+            cv2.circle(pre_color_map, point, 2, BGR_R, thickness)
+            # cv2.drawMarker(pil_input0, point, RGB_R, markerType=cv2.MARKER,markerSize=20,thickness=3)
+
+    if gt_points is not None:
+        for i, point in enumerate(gt_points, 0):
+            point = point.astype(np.int32)
+            point = (point[0], point[1])
+            cv2.circle(pil_input0, point, 4, RGB_R, thickness)
+
+    cv2.putText(gt_color_map, 'GT:' + str(gt_cnt), (100, 150), cv2.FONT_HERSHEY_SIMPLEX,
+                3, (255, 255, 255), thickness=2)
+    cv2.putText(pre_color_map, 'Pre:' + str(np.round(pre_cnt, 1)), (100, 150), cv2.FONT_HERSHEY_SIMPLEX,
+                3, (255, 255, 255), thickness=2)
+
+    pil_input0 = Image.fromarray(pil_input0)
+    pil_label0 = Image.fromarray(cv2.cvtColor(gt_color_map, cv2.COLOR_BGR2RGB))
+    pil_output0 = Image.fromarray(cv2.cvtColor(pre_color_map, cv2.COLOR_BGR2RGB))
+
+    imgs = [pil_input0, pil_label0, pil_output0]
+
+    # 显示分割图, 插值分割图
+    gt_seg_map = get_seg_map(gt_seg_map0, size=(UNIT_H, UNIT_W), text='GT')
+    pre_seg_map = get_seg_map(pre_seg_map0, size=(UNIT_H, UNIT_W), text='Pre')
+    gt_seg_level_map = get_seg_map(gt_seg_level_map0, size=(UNIT_H, UNIT_W), text='GT')
+    pre_seg_level_map = get_seg_map(pre_seg_level_map0, size=(UNIT_H, UNIT_W), text='Pre')
+    seg_maps = [gt_seg_map, pre_seg_map, gt_seg_level_map, pre_seg_level_map]
+    for seg_map in [s for s in seg_maps if s is not None]:
+        imgs.append(seg_map)
+
+    # 保存图片 从左到右，从上到下
+    w_num, h_num = 3, 3
+    target_shape = (w_num * (UNIT_W + 10), h_num * (UNIT_H + 10))
+    target = Image.new('RGB', target_shape)
+    count = 0
+    for img in imgs:
+        if count > 0 and count % w_num==0:
+            count += 1 # 第一列不填充
+        x, y = int(count % w_num) * (UNIT_W + 10), int(count // w_num) * (UNIT_H + 10)  # 左上角坐标，从左到右递增
+        target.paste(img, (x, y, x + UNIT_W, y + UNIT_H))
+        count += 1
+    target.save(os.path.join(exp_path, '{}_den.jpg'.format(iter)))
+
+
 def save_results_more(iter, exp_path,img0, pre_map0,gt_map0,pre_cnt, gt_cnt, pre_points=None,gt_points=None):  # , flow):
     # gt_cnt = gt_map0.sum().item()
     # pre_cnt = pre_map0.sum().item()
@@ -346,3 +428,17 @@ def vis_results(exp_name, writer, img, pred_map, gt_map, binar_map, thresholds, 
 
     # x = np.concatenate((x,y),axis=1)
     writer.add_image(exp_name, x, steps)
+
+
+def get_seg_map(seg_map0, size, text):
+    if seg_map0 is None:
+        return None
+    seg_map0 = seg_map0.float().detach().to('cpu')
+    seg_map0 = F.interpolate(seg_map0.unsqueeze(0), size=size).squeeze(0).numpy()
+    seg_map = seg_map0.astype(np.uint8).squeeze(0) * 255
+
+    if text:
+        RGB_R = (255, 0, 0)
+        cv2.putText(seg_map, text, (100, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, RGB_R, thickness=2)
+
+    return Image.fromarray(seg_map)

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from .cc_function import get_rank, get_world_size, AverageMeter, \
-    allreduce_tensor, save_results_more, reduce_tensor
+    allreduce_tensor, save_results_more_with_seg_map, reduce_tensor
 import time
 import logging
 
@@ -46,7 +46,6 @@ class TrainerBase:
             for i in range(len(name_idx[0])):
 
                 _name = name_idx[0][i]
-
                 if _name not in train_dataset.resize_memory_pool.keys():
                     p_h = int(np.ceil(size[i][0] / config.train.route_size[0]))
                     p_w = int(np.ceil(size[i][1] / config.train.route_size[1]))
@@ -107,9 +106,28 @@ class TrainerBase:
                     for t, m, s in zip(image, mean, std):
                         t.mul_(s).add_(m)
 
-                    save_results_more(global_steps, img_vis_dir, image.cpu().data, \
-                                      pre_den[0].detach().cpu(), gt_den[0].detach().cpu(),
-                                      pre_den[0].sum().item(), label[0][0].sum().item())
+                    pre_seg_crowd = get_seg_map_result(result, 'pre_seg_crowd')
+                    gt_seg_crowd = get_seg_map_result(result, 'gt_seg_crowd')
+                    pre_seg_level = get_seg_map_result(result, 'pre_seg_level')
+                    gt_seg_level = get_seg_map_result(result, 'gt_seg_level')
+                    if pre_seg_level is None:
+                        pre_seg_level = torch.zeros_like(pre_seg_crowd)
+                    if gt_seg_level is None:
+                        gt_seg_level = torch.zeros_like(gt_seg_crowd)
+                    save_results_more_with_seg_map(global_steps, img_vis_dir, image.cpu().data, \
+                                                   pre_den[0].detach().cpu(), gt_den[0].detach().cpu(),
+                                                   pre_den[0].sum().item(), label[0][0].sum().item(),
+                                                   pre_seg_map0=pre_seg_crowd[0].detach().cpu(),
+                                                   gt_seg_map0=gt_seg_crowd[0].detach().cpu(),
+                                                   pre_seg_level_map0=pre_seg_level[0].detach().cpu(),
+                                                   gt_seg_level_map0=gt_seg_level[0].detach().cpu())
+
+
+def get_seg_map_result(result, key):
+    seg =  result.get(key, None)
+    if seg is not None:
+        return seg['1']
+    return None
 
 # class Trainer_Adaptive_Kernel:
 #     def train(config, epoch, num_epoch, epoch_iters, num_iters,
