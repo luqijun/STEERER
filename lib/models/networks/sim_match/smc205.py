@@ -256,7 +256,7 @@ class SMC205(nn.Module):
 
             if mode == 'train' or mode == 'val':
                 loss = 0
-
+                loss += seg_crowd_loss
                 if self.config.baseline_loss:
                     loss = loss_list[0]
                 else:
@@ -284,10 +284,10 @@ class SMC205(nn.Module):
                 result['gt_den'].update({'8': label_list[-1] / self.weight})
 
                 result['pre_seg_crowd'] = {}
-                result['pre_seg_crowd'].update({'1': fg_list[0]})
-                result['pre_seg_crowd'].update({'2': fg_list[1]})
-                result['pre_seg_crowd'].update({'4': fg_list[2]})
-                result['pre_seg_crowd'].update({'8': fg_list[3]})
+                result['pre_seg_crowd'].update({'1': fg_list[0] > 0.5})
+                result['pre_seg_crowd'].update({'2': fg_list[1] > 0.5})
+                result['pre_seg_crowd'].update({'4': fg_list[2] > 0.5})
+                result['pre_seg_crowd'].update({'8': fg_list[3] > 0.5})
                 result['gt_seg_crowd'] = {}
                 result['gt_seg_crowd'].update({'1': fg_mask_list[0]})
                 result['gt_seg_crowd'].update({'2': fg_mask_list[1]})
