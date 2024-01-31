@@ -7,3 +7,4 @@ from .smc203 import *
 from .smc204 import *
 from .smc205 import *
 from .smc206 import *
+from .smc207 import *
