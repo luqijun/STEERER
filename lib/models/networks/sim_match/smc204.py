@@ -6,7 +6,7 @@ from lib.models.heads.head_selector import HeadSelector
 from lib.models.heads.moe import upsample_module
 from lib.utils.Gaussianlayer import Gaussianlayer
 import math
-from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, GenerateKernelLayer204
+from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, build_gen_kernel
 import logging
 
 # 使用sim_feature_bank存储相似特征  输入特征支持（256, 256）
@@ -58,7 +58,7 @@ class SMC204(nn.Module):
         self.seg_levels = nn.Sequential(*seg_level_layers)
 
         self.kernel_size = 3
-        self.kernel_extractor = GenerateKernelLayer204(self.config, self.kernel_size, self.hidden_channels)
+        self.kernel_extractor = build_gen_kernel(self.config)
 
         channel_last_layer = self.config.head.stages_channel[0]
 

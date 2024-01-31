@@ -6,7 +6,7 @@ from lib.models.heads.head_selector import HeadSelector
 from lib.models.heads.moe import upsample_module
 from lib.utils.Gaussianlayer import Gaussianlayer
 import math
-from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, GenerateKernelLayer201
+from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, build_gen_kernel
 import logging
 
 # 将每一层向上采用拼接， 高层级特征生成共性特征kernel， 每一层预测Density Map， Similarity Map， Segmentation Map,
@@ -74,7 +74,7 @@ class SMC201(nn.Module):
         self.segmentations = nn.Sequential(*seg_layers)
 
         self.kernel_size = 3
-        self.kernel_extractor = GenerateKernelLayer201(self.config, self.kernel_size, self.hidden_channels)
+        self.kernel_extractor = build_gen_kernel(self.config)
 
         channel_last_layer = self.config.head.stages_channel[0]
 

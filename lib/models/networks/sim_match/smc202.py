@@ -6,7 +6,7 @@ from lib.models.heads.head_selector import HeadSelector
 from lib.models.heads.moe import upsample_module
 from lib.utils.Gaussianlayer import Gaussianlayer
 import math
-from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, GenerateKernelLayer202
+from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, build_gen_kernel
 import logging
 
 # 在201基础上，使用（192，192）输入，通过avgPooling+conv生成卷积核，效果很差
@@ -73,7 +73,7 @@ class SMC202(nn.Module):
         self.segmentations = nn.Sequential(*seg_layers)
 
         self.kernel_size = 3
-        self.kernel_extractor = GenerateKernelLayer202(self.config, self.kernel_size, self.hidden_channels)
+        self.kernel_extractor = build_gen_kernel(self.config)
 
         channel_last_layer = self.config.head.stages_channel[0]
 

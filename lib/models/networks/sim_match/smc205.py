@@ -6,7 +6,7 @@ from lib.models.heads.head_selector import HeadSelector
 from lib.models.heads.moe import upsample_module
 from lib.utils.Gaussianlayer import Gaussianlayer
 import math
-from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, GenerateKernelLayer205
+from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, build_gen_kernel
 from ...losses import CHSLoss2
 import logging
 
@@ -59,7 +59,7 @@ class SMC205(nn.Module):
         self.seg_levels = nn.Sequential(*seg_level_layers)
 
         self.kernel_size = 3
-        self.kernel_extractor = GenerateKernelLayer205(self.config, self.kernel_size, self.hidden_channels)
+        self.kernel_extractor = build_gen_kernel(self.config)
 
         channel_last_layer = self.config.head.stages_channel[0]
 

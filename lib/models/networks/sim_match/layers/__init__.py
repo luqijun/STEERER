@@ -1,8 +1,7 @@
 from .attention import *
 from .dsnet import *
 from .gaussian import *
-from .gen_kernel import *
-from .gen_kernel_2xx import *
+from lib.models.networks.sim_match.layers.gen_kenel.gen_kernel import *
 from .nested_tensor import *
 from .position_encoding import *
 from .segmentation import *
@@ -10,6 +9,7 @@ from .trans_decoder_wrapper import *
 from .transformer import *
 from .transition import *
 from .twoway_transformer import *
+from .build_gen_kernel import *
 
 # import pkgutil
 # import inspect

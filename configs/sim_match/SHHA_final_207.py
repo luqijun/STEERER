@@ -20,6 +20,14 @@ network = dict(
     baseline_loss = False,
     pretrained_backbone="PretrainedModels/hrnetv2_w48_imagenet_pretrained.pth",
 
+    gen_kernel=dict(
+        name="GenerateKernelLayer207",
+        hidden_channels=64,
+        window_sizes=[(8, 16), (8, 8), (16, 8),],
+        num_encoder_layers=2,
+        num_decoder_layers=2
+    ),
+
     chf = dict(
         sample_interval=8,
         bandwidth=8,

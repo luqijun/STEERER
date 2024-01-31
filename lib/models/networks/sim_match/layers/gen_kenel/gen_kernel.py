@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .dsnet import DenseScaleNet
-from .transition import TransitionLayer
-from .nested_tensor import NestedTensor
-from .position_encoding import PositionEmbeddingSine
-from .trans_decoder_wrapper import TransDecoderWrapperLayer2
+from lib.models.networks.sim_match.layers.dsnet import DenseScaleNet
+from lib.models.networks.sim_match.layers.transition import TransitionLayer
+from lib.models.networks.sim_match.layers.nested_tensor import NestedTensor
+from lib.models.networks.sim_match.layers.position_encoding import PositionEmbeddingSine
+from lib.models.networks.sim_match.layers.trans_decoder_wrapper import TransDecoderWrapperLayer2
 
 # 原来的GenerateKernelLayer21
 

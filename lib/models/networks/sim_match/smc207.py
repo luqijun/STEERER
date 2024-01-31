@@ -6,7 +6,7 @@ from lib.models.heads.head_selector import HeadSelector
 from lib.models.heads.moe import upsample_module
 from lib.utils.Gaussianlayer import Gaussianlayer
 import math
-from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, GenerateKernelLayer207
+from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, build_gen_kernel
 from ...losses import CHSLoss2
 import logging
 
@@ -39,7 +39,7 @@ class SMC207(nn.Module):
         self.label_end = self.resolution_num[-1] + 1
 
         # 转换上采样的数据
-        self.hidden_channels = 64
+        self.hidden_channels = config.gen_kernel.get("hidden_channels", 256)
         transition_layers = []
         for i, c in enumerate(self.config.head.stages_channel):
             if i == 0:
@@ -62,7 +62,7 @@ class SMC207(nn.Module):
         # self.seg_levels = nn.Sequential(*seg_level_layers)
 
         self.kernel_size = 3
-        self.kernel_extractor = GenerateKernelLayer207(self.config, self.kernel_size, self.hidden_channels)
+        self.kernel_extractor = build_gen_kernel(self.config)
 
         channel_last_layer = self.config.head.stages_channel[0]
 
