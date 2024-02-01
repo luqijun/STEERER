@@ -164,14 +164,15 @@ class SHHA_Sim_Match_Pad(BaseDataset):
         else:
             real_w = w
 
-        if real_h < 768:
+        crop_h, crop_w = self.crop_size
+        if real_h < crop_h:
             logging.info(
-                f"=========================test: padd image H from ({real_h}) to (768)=========================")
-            real_h = 768
-        if real_w < 768:
+                f"=========================test: padd image H from ({real_h}) to ({crop_h})=========================")
+            real_h = crop_h
+        if real_w < crop_w:
             logging.info(
-                f"=========================test: padd image W from ({real_w}) to (768)=========================")
-            real_w = 768
+                f"=========================test: padd image W from ({real_w}) to ({crop_w})=========================")
+            real_w = crop_w
 
         image = self.pad_image(image, size=(real_h, real_w), h=h,w=w, padvalue= (0.0, 0.0, 0.0))
         return image
