@@ -127,3 +127,71 @@ class GenerateKernelLayer201(nn.Module):
         output = torch.cat(sim_maps, dim=1)
 
         return output
+
+# GenerateKernelLayer201_v1：使用AdaptiveAvgPool2d，结合（256,256）尺寸
+
+class GenerateKernelLayer201_v1(GenerateKernelLayer201):
+    def __init__(self, config):
+        super(GenerateKernelLayer201_v1, self).__init__(config)
+        hidden_channels = config.gen_kernel.get("hidden_channels", 256)
+        self.load_model = None
+        self.config = config
+        self.hidden_channels = hidden_channels
+        self.kernel_num = 1
+
+        # dense net
+        self.dsnet = DenseScaleNet(hidden_channels, hidden_channels, hidden_channels//2)
+
+        # two way transformer
+        self.twoway_trans = TwoWayTransformer(depth=2,
+                                              embedding_dim=hidden_channels,
+                                              mlp_dim=2048,
+                                              num_heads=8,)
+
+        # position encoding
+        self.pe_layer = PositionEmbeddingRandom(hidden_channels // 2)
+
+        self.relu = nn.ReLU(True)
+
+        # 初级的提取
+        self.dilation_num = 1
+        kernel_blocks, extra_conv_kernels = self.make_kernel_extractor_v1(config, hidden_channels, feature_size=(5, 5))
+        self.kernel_blocks = nn.Sequential(*kernel_blocks)
+        self.extra_conv_kernels = nn.Sequential(*extra_conv_kernels)
+
+        self.kernel_list = None
+
+        # 转换kernel
+        kernel_tran_layers = []
+        kernel_tran_layers_list = []
+        for i, c in enumerate(self.config.head.stages_channel):
+            for _ in range(self.kernel_num):
+                kernel_tran_layers.append(
+                    TransitionLayer(hidden_channels, hidden_channels,
+                                    hidden_channels=hidden_channels // 2))
+            kernel_tran_layers_list.append(nn.Sequential(*kernel_tran_layers))
+        self.kernel_tran_layers_list = nn.Sequential(*kernel_tran_layers_list)
+
+        # upsample
+        self.upsample_block = make_head_layer(self.dilation_num, self.dilation_num)
+        self.upsample_block_copy = make_head_layer(self.dilation_num, self.dilation_num)
+
+        # _initialize_weights(self)
+
+
+    def make_kernel_extractor_v1(self, config, hidden_channels, feature_size=(7, 7)):
+
+        conv1 = make_conv_layer(hidden_channels, 3, 1, 1)  # 11*11
+        conv2 = nn.Sequential(*[nn.Conv2d(hidden_channels, hidden_channels // 2, 3, 1, padding=1),
+                               nn.AdaptiveAvgPool2d(output_size=feature_size),
+                               nn.Conv2d(hidden_channels // 2, hidden_channels // 2, 3, 1),
+                               nn.BatchNorm2d(hidden_channels // 2),
+                               nn.ReLU(True),
+                               nn.Conv2d(hidden_channels // 2, hidden_channels, 3, 1, padding=1)])
+
+        # conv6 = self.make_conv_layer(hidden_channels, 3, 1, p1=1, p2=0)  # 1*1
+        kernel_blocks = [conv1, conv2]
+
+        # 创建不同的dialation kernel
+        extra_conv_group = []
+        return kernel_blocks, extra_conv_group
