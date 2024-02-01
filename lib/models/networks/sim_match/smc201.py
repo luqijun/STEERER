@@ -125,7 +125,7 @@ class SMC201(nn.Module):
             last_map = None
             seg_map = None
             kernel =  None
-            assert in_list[-1].shape[-1] == 24
+            # assert in_list[-1].shape[-1] == 24
             for i, in_map in enumerate(in_list[::-1]):
                 # in_map = self.DSNets[i](in_map)
                 if last_map is not None:
@@ -191,6 +191,20 @@ class SMC201(nn.Module):
 
             multi_outputs_list = []
 
+            # =============================计算分割Crowd map损失==============================
+            # 分割图损失
+            seg_crowd_loss = 0.
+            for i in range(len(out_list)):
+                if fg_list[i].shape[2:] != fg_mask_list[i].shape[2:]:
+                    fg_list[i] = F.interpolate(fg_list[i], fg_mask_list[i].shape[2:], mode='nearest')
+                fg_list[i] = self.sgm(fg_list[i])
+                pre_seg_crowd = fg_list[i]
+                gt_seg_crowd = fg_mask_list[i].float()
+                ce_loss = (gt_seg_crowd * torch.log(pre_seg_crowd + 1e-10) + (1 - gt_seg_crowd) * torch.log(
+                    1 - pre_seg_crowd + 1e-10)) * -1
+                seg_crowd_loss += torch.mean(ce_loss)
+                # seg_loss += self.bce_loss(fg_list[i], amp_gt_us)
+
             # =============================计算MSE损失==============================
             for i in range(len(out_list)):
                 tmp_loss =0
@@ -244,6 +258,7 @@ class SMC201(nn.Module):
 
             if mode == 'train' or mode == 'val':
                 loss = 0
+                loss += seg_crowd_loss
 
                 if self.config.baseline_loss:
                     loss = loss_list[0]
@@ -253,16 +268,6 @@ class SMC201(nn.Module):
                         loss += loss_list[i] * self.config.loss_weight[i]
                         # else:
                         #     loss += loss_list[i] /(2**(i))
-
-                # 分割图损失
-                for i in range(len(self.resolution_num)):
-                    amp = self.sgm(fg_list[i])
-                    amp_gt_us = fg_mask_list[i].float()
-                    if amp_gt_us.shape[2:] != amp.shape[2:]:
-                        # amp_gt_us = F.interpolate(amp_gt_us, amp.shape[2:], mode='bilinear')
-                        amp_gt_us = F.interpolate(amp_gt_us, amp.shape[2:], mode='nearest')
-                    ce_loss = (amp_gt_us * torch.log(amp + 1e-10) + (1 - amp_gt_us) * torch.log(1 - amp + 1e-10)) * -1
-                    loss += torch.mean(ce_loss)
 
                 for i in ['x4', 'x8', 'x16', 'x32']:
                     if i not in result.keys():
@@ -280,6 +285,17 @@ class SMC201(nn.Module):
                     result['gt_den'].update({'2': label_list[-3] / self.weight})
                     result['gt_den'].update({'4': label_list[-2] / self.weight})
                 result['gt_den'].update({'8': label_list[-1] / self.weight})
+
+                result['pre_seg_crowd'] = {}
+                result['pre_seg_crowd'].update({'1': fg_list[0] > 0.5})
+                result['pre_seg_crowd'].update({'2': fg_list[1] > 0.5})
+                result['pre_seg_crowd'].update({'4': fg_list[2] > 0.5})
+                result['pre_seg_crowd'].update({'8': fg_list[3] > 0.5})
+                result['gt_seg_crowd'] = {}
+                result['gt_seg_crowd'].update({'1': fg_mask_list[0]})
+                result['gt_seg_crowd'].update({'2': fg_mask_list[1]})
+                result['gt_seg_crowd'].update({'4': fg_mask_list[2]})
+                result['gt_seg_crowd'].update({'8': fg_mask_list[3]})
 
                 return result
 
