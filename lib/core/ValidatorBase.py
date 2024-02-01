@@ -146,12 +146,16 @@ class ValidatorBase:
         crop_losses = []
         crop_preds = {}
         crop_labels = {}
-        crop_pred_seg_crowds = {} # 分割 crowd
-        crop_pred_seg_levels = {} # 分割 level
+        crop_pred_seg_crowds = {}  # 分割 crowd
+        crop_gt_seg_crowds = {}  # 分割 crowd
+        crop_pred_seg_levels = {}  # 分割 level
+        crop_gt_seg_levels = {}  # 分割 level
         crop_labels['1'], crop_labels['2'], crop_labels['4'], crop_labels['8'] = [], [], [], []
         crop_preds['1'], crop_preds['2'], crop_preds['4'], crop_preds['8'] = [], [], [], []
         crop_pred_seg_crowds['1'], crop_pred_seg_crowds['2'], crop_pred_seg_crowds['4'], crop_pred_seg_crowds['8'] = [], [], [], []
+        crop_gt_seg_crowds['1'], crop_gt_seg_crowds['2'], crop_gt_seg_crowds['4'], crop_gt_seg_crowds['8'] = [], [], [], []
         crop_pred_seg_levels['1'], crop_pred_seg_levels['2'], crop_pred_seg_levels['4'], crop_pred_seg_levels['8'] = [], [], [], []
+        crop_gt_seg_levels['1'], crop_gt_seg_levels['2'], crop_gt_seg_levels['4'], crop_gt_seg_levels['8'] = [], [], [], []
         nz, bz = crop_imgs.size(0), num_patches
         keys_pre = None
 
@@ -167,14 +171,23 @@ class ValidatorBase:
                 crop_labels[k].append(crop_label[k].cpu())
 
                 # seg corwd and seg level
-                pred_seg_crowd = get_seg_map_result(result['pre_seg_crowd'], k)
-                pred_seg_level = get_seg_map_result(result['pre_seg_level'], k)
-                if pred_seg_crowd is None:
-                    pred_seg_crowd = torch.zeros_like(crop_pred[k])
-                if pred_seg_level is None:
-                    pred_seg_level = torch.zeros_like(crop_pred[k])
-                crop_pred_seg_levels[k].append(pred_seg_level)
-                crop_pred_seg_crowds[k].append(pred_seg_crowd)
+                pre_seg_crowd = get_seg_map_result(result, 'pre_seg_crowd', k)
+                gt_seg_crowd = get_seg_map_result(result, 'gt_seg_crowd', k)
+                pre_seg_level = get_seg_map_result(result, 'pre_seg_level', k)
+                gt_seg_level = get_seg_map_result(result, 'gt_seg_level', k)
+                if pre_seg_crowd is None:
+                    pre_seg_crowd = torch.zeros_like(crop_pred[k])
+                if gt_seg_crowd is None:
+                    gt_seg_crowd = torch.zeros_like(crop_pred[k])
+                if pre_seg_level is None:
+                    pre_seg_level = torch.zeros_like(crop_pred[k])
+                if gt_seg_level is None:
+                    gt_seg_level = torch.zeros_like(crop_pred[k])
+
+                crop_pred_seg_crowds[k].append(pre_seg_crowd.cpu())
+                crop_gt_seg_crowds[k].append(gt_seg_crowd.cpu())
+                crop_pred_seg_levels[k].append(pre_seg_level.cpu())
+                crop_gt_seg_levels[k].append(gt_seg_level.cpu())
 
 
             crop_losses.append(result['losses'].mean())
@@ -183,16 +196,22 @@ class ValidatorBase:
         for k in keys_pre:
             crop_preds[k] = torch.cat(crop_preds[k], dim=0)
             crop_labels[k] = torch.cat(crop_labels[k], dim=0)
-            crop_pred_seg_crowds[k] = torch.cat(crop_pred_seg_crowds['1'], dim=0)
-            crop_pred_seg_levels[k] = torch.cat(crop_pred_seg_levels['1'], dim=0)
+            crop_pred_seg_crowds[k] = torch.cat(crop_pred_seg_crowds[k], dim=0)
+            crop_gt_seg_crowds[k] = torch.cat(crop_gt_seg_crowds[k], dim=0)
+            crop_pred_seg_levels[k] = torch.cat(crop_pred_seg_levels[k], dim=0)
+            crop_gt_seg_levels[k] = torch.cat(crop_gt_seg_levels[k], dim=0)
 
         # splice them to the original size
-        result = {'pre_den': {}, 'gt_den': {}, 'pred_seg_crowd': {}, 'pred_seg_level': {} }
+        result = {'pre_den': {}, 'gt_den': {},
+                  'pre_seg_crowd': {}, 'pre_seg_level': {},
+                  'gt_seg_crowd': {}, 'gt_seg_level': {}}
         for res_i, k in enumerate(keys_pre):
             pred_map = torch.zeros_like(dot_map[res_i]).unsqueeze(0).cpu().float()
             labels = torch.zeros_like(dot_map[res_i]).unsqueeze(0).cpu().float()
-            pred_seg_crowd = torch.zeros_like(dot_map[res_i]).unsqueeze(0).cpu().float()
-            pred_seg_level = torch.zeros_like(dot_map[res_i]).unsqueeze(0).cpu().float()
+            pre_seg_crowd = torch.zeros_like(dot_map[res_i]).unsqueeze(0).cpu().float()
+            gt_seg_crowd = torch.zeros_like(dot_map[res_i]).unsqueeze(0).cpu().float()
+            pre_seg_level = torch.zeros_like(dot_map[res_i]).unsqueeze(0).cpu().float()
+            gt_seg_level = torch.zeros_like(dot_map[res_i]).unsqueeze(0).cpu().float()
             idx = 0
             for i in range(0, h, rh):
                 gis, gie = max(min(h - rh, i), 0), min(h, i + rh)
@@ -204,8 +223,10 @@ class ValidatorBase:
 
                     pred_map[:, :, gis_:gie_, gjs_:gje_] += crop_preds[k][idx]
                     labels[:, :, gis_:gie_, gjs_:gje_] += crop_labels[k][idx]
-                    pred_seg_crowd[:, :, gis_:gie_, gjs_:gje_] += crop_pred_seg_crowds[k][idx]
-                    pred_seg_level[:, :, gis_:gie_, gjs_:gje_] += crop_pred_seg_levels[k][idx]
+                    pre_seg_crowd[:, :, gis_:gie_, gjs_:gje_] += crop_pred_seg_crowds[k][idx]
+                    gt_seg_crowd[:, :, gis_:gie_, gjs_:gje_] += crop_gt_seg_crowds[k][idx]
+                    pre_seg_level[:, :, gis_:gie_, gjs_:gje_] += crop_pred_seg_levels[k][idx]
+                    gt_seg_level[:, :, gis_:gie_, gjs_:gje_] += crop_gt_seg_levels[k][idx]
                     idx += 1
 
             mask = crop_masks[k].sum(dim=0).unsqueeze(0).unsqueeze(0)
@@ -213,8 +234,10 @@ class ValidatorBase:
             labels = (labels / mask)
             result['pre_den'].update({k: pred_map})
             result['gt_den'].update({k: labels})
-            result['pred_seg_crowd'].update({k: pred_seg_crowd})
-            result['pred_seg_level'].update({k: pred_seg_level})
+            result['pre_seg_crowd'].update({k: pre_seg_crowd})
+            result['gt_seg_crowd'].update({k: gt_seg_crowd})
+            result['pre_seg_level'].update({k: pre_seg_level})
+            result['gt_seg_level'].update({k: gt_seg_level})
             result.update({'losses': crop_losses[0]})
         return result
 
