@@ -27,9 +27,9 @@ class GenerateKernelLayer205(nn.Module):
         #                                       mlp_dim=2048,
         #                                       num_heads=8,)
 
-        window_sizes = config.transformer.get("window_sizes", [(32, 16), (16, 8)])
-        num_encoder_layers = config.transformer.get("num_encoder_layers", 6)
-        num_decoder_layers = config.transformer.get("num_decoder_layers", 6)
+        window_sizes = config.gen_kernel.get("window_sizes", [(32, 16), (16, 8)])
+        num_encoder_layers = config.gen_kernel.get("num_encoder_layers", 6)
+        num_decoder_layers = config.gen_kernel.get("num_decoder_layers", 6)
         self.window_sizes = window_sizes
 
         # position encoding
@@ -55,8 +55,9 @@ class GenerateKernelLayer205(nn.Module):
         src = src.permute(0, 2, 3, 1)
         B, H, W, C = src.shape
 
-        kernel = self.conv_kernel_extrator(x_with_seg).flatten(-2).permute(0, 2, 1)
-
+        kernel = self.conv_kernel_extrator(x_with_seg)
+        tgt_pos = self.pe_layer(kernel.shape[-2:]).unsqueeze(0).flatten(-2).permute(0, 2, 1)
+        kernel = kernel.flatten(-2).permute(0, 2, 1) + tgt_pos
 
         output = src
         for i, window_size in enumerate(self.window_sizes):
@@ -69,8 +70,7 @@ class GenerateKernelLayer205(nn.Module):
             output = output.flatten(1, 2)
 
             num_wins = output.shape[0] // B
-            tgt_pos = self.pe_layer((3, 3)).unsqueeze(0).flatten(-2).permute(0, 2, 1)
-            tgt = self.sim_feature_bank.unsqueeze(0) + kernel + tgt_pos
+            tgt = self.sim_feature_bank.unsqueeze(0) + kernel
             tgt = tgt.unsqueeze(1).expand(-1, num_wins, -1, -1).flatten(0, 1)
 
             # Use transformer to update sim_feature_bank
@@ -89,3 +89,65 @@ class GenerateKernelLayer205(nn.Module):
         # sim_map2 = self.upsample_block_2(output2)
 
         return sim_map1, None # sim_map2
+
+# GenerateKernelLayer205_v1：将不同层级的卷积核融合一下
+
+class GenerateKernelLayer205_v1(GenerateKernelLayer205):
+    def __init__(self, config):
+        super(GenerateKernelLayer205_v1, self).__init__(config)
+        # 提取卷积核
+        # self.conv_kernel_extrator = make_kernel_extractor_downsample(self.hidden_channels)
+        self.conv_kernel_extrator = make_kernel_extractor_adaptive(self.hidden_channels, (5, 5))
+        self.sim_feature_banks = nn.Parameter(torch.randn((4, 9, self.hidden_channels)), requires_grad=True)
+        self.kernels = [None, None, None, None]
+        self.kernel_trans = nn.Sequential(*[
+            nn.Conv2d(self.hidden_channels * (i + 2), self.hidden_channels, 1, 1) for i in range(3)
+        ][::-1])
+
+    def forward(self, x, x_with_seg, level):
+
+        src = x
+        src_pos = self.pe_layer(src.shape[-2:]).unsqueeze(0)
+        src = src + src_pos
+        src = src.permute(0, 2, 3, 1)
+        B, H, W, C = src.shape
+
+        kernel = self.extract_kernel(x_with_seg, level)
+        tgt_pos = self.pe_layer(kernel.shape[-2:]).unsqueeze(0).flatten(-2).permute(0, 2, 1)
+        kernel = kernel.flatten(-2).permute(0, 2, 1) + tgt_pos
+
+        output = src
+        for i, window_size in enumerate(self.window_sizes):
+            win_w = window_size[0] // 2 ** level
+            win_h = window_size[1] // 2 ** level
+
+            # Split into windows
+            output, pad_hw = window_partition(output, (win_h, win_w))  # [B * num_windows, win_h, win_w, C].
+            output = output.flatten(1, 2)
+
+            num_wins = output.shape[0] // B
+            tgt = self.sim_feature_banks[level].unsqueeze(0) + kernel
+            tgt = tgt.unsqueeze(1).expand(-1, num_wins, -1, -1).flatten(0, 1)
+
+            # Use transformer to update sim_feature_bank
+            output = self.transformer(tgt, output)
+            output = output.view(-1, win_h, win_w, C)
+            output = window_unpartition(output, (win_h, win_w), pad_hw, (H, W))
+
+        # get sim map by transformer ouput
+        output = output.permute(0, 3, 1, 2)
+        sim_map1 = self.upsample_block(output)
+
+        return sim_map1, None  # sim_map2
+
+    def extract_kernel(self, input, level):
+        if level == 3:
+            kernel = self.conv_kernel_extrator(input)
+        else:
+            kernel = self.conv_kernel_extrator(input)
+            kernel_list = [kernel]
+            kernel_list.extend([k for i, k in enumerate(self.kernels) if i > level])
+            kernel = torch.cat(kernel_list, dim=1)
+            kernel = self.kernel_trans[level](kernel)
+        self.kernels[level] = kernel
+        return kernel

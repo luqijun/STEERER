@@ -67,10 +67,32 @@ def window_unpartition(
     return x
 
 
+def make_kernel_extractor_downsample(hidden_channels):
+
+    return nn.Sequential(*[nn.AvgPool2d((2, 2), stride=2),
+                           nn.Conv2d(hidden_channels, hidden_channels // 2, 3, 1, padding=1),
+                           nn.BatchNorm2d(hidden_channels // 2),
+                           nn.ReLU(True),
+                           nn.Conv2d(hidden_channels // 2, hidden_channels // 2, 3, 1, padding=1),
+
+                           nn.AvgPool2d((2, 2), stride=2),
+                           nn.BatchNorm2d(hidden_channels // 2),
+                           nn.ReLU(True),
+                           nn.Conv2d(hidden_channels // 2, hidden_channels, 3, 1, padding=1),
+                           ],
+                         )
+
+
 def make_kernel_extractor_adaptive(hidden_channels, feature_size=(7, 7)):
 
-    return nn.Sequential(*[nn.AdaptiveAvgPool2d(output_size=feature_size),
-                           nn.Conv2d(hidden_channels, hidden_channels // 2, 3, 1),
+    # return nn.Sequential(*[nn.AdaptiveAvgPool2d(output_size=feature_size),
+    #                        nn.Conv2d(hidden_channels, hidden_channels // 2, 3, 1),
+    #                        nn.BatchNorm2d(hidden_channels // 2),
+    #                        nn.ReLU(True),
+    #                        nn.Conv2d(hidden_channels // 2, hidden_channels, 3, 1, padding=1)])
+    return nn.Sequential(*[nn.Conv2d(hidden_channels, hidden_channels // 2, 3, 1, padding=1),
+                           nn.AdaptiveAvgPool2d(output_size=feature_size),
+                           nn.Conv2d(hidden_channels // 2, hidden_channels // 2, 3, 1),
                            nn.BatchNorm2d(hidden_channels // 2),
                            nn.ReLU(True),
                            nn.Conv2d(hidden_channels // 2, hidden_channels, 3, 1, padding=1)])
