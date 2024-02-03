@@ -234,10 +234,10 @@ class ValidatorBase:
             labels = (labels / mask)
             result['pre_den'].update({k: pred_map})
             result['gt_den'].update({k: labels})
-            result['pre_seg_crowd'].update({k: pre_seg_crowd})
-            result['gt_seg_crowd'].update({k: gt_seg_crowd})
-            result['pre_seg_level'].update({k: pre_seg_level})
-            result['gt_seg_level'].update({k: gt_seg_level})
+            result['pre_seg_crowd'].update({k: pre_seg_crowd / mask})
+            result['gt_seg_crowd'].update({k: gt_seg_crowd / mask})
+            result['pre_seg_level'].update({k: pre_seg_level / mask})
+            result['gt_seg_level'].update({k: gt_seg_level / mask})
             result.update({'losses': crop_losses[0]})
         return result
 
@@ -719,9 +719,9 @@ class Validator_LevelMap(ValidatorBase):
             labels = (labels / mask)
             result['pre_den'].update({k: pred_map})
             result['gt_den'].update({k: labels})
-            result['pre_seg_crowd'].update({k: pre_seg_crowd})
-            result['gt_seg_crowd'].update({k: gt_seg_crowd})
-            result['pre_seg_level'].update({k: pre_seg_level})
-            result['gt_seg_level'].update({k: gt_seg_level})
+            result['pre_seg_crowd'].update({k: pre_seg_crowd / mask})
+            result['gt_seg_crowd'].update({k: gt_seg_crowd / mask})
+            result['pre_seg_level'].update({k: pre_seg_level / mask})
+            result['gt_seg_level'].update({k: gt_seg_level / mask})
             result.update({'losses': crop_losses[0]})
         return result

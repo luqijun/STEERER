@@ -209,6 +209,30 @@ import cv2
 from PIL import Image
 import torch.nn.functional as F
 
+# 创建一个彩色映射，每个类别对应一种颜色
+color_map = np.array([
+    [128, 0, 0],    # 类别0的颜色
+    # [139, 0, 0],    # 类别1的颜色
+    [150, 0, 0],    # 类别2的颜色
+    # [160, 0, 0],    # 类别3的颜色
+    [170, 0, 0],    # 类别4的颜色
+    # [180, 0, 0],    # 类别5的颜色
+    [190, 0, 0],    # 类别6的颜色
+    # [200, 0, 0],    # 类别7的颜色
+    [210, 0, 0],    # 类别8的颜色
+    # [220, 0, 0],    # 类别9的颜色
+    [230, 0, 0],    # 类别10的颜色
+    # [240, 0, 0],    # 类别11的颜色
+    [250, 0, 0],    # 类别12的颜色
+    # [255, 10, 10],  # 类别13的颜色
+    [255, 20, 20],  # 类别14的颜色
+    # [255, 30, 30],  # 类别15的颜色
+    [255, 40, 40],  # 类别16的颜色
+    # [255, 50, 50],  # 类别17的颜色
+    [255, 60, 60],  # 类别18的颜色
+    [255, 70, 70]   # 类别19的颜色
+])
+
 
 def save_results_more_with_seg_map(iter, exp_path, img0,
                                    pre_map0, gt_map0,
@@ -271,8 +295,8 @@ def save_results_more_with_seg_map(iter, exp_path, img0,
     # 显示分割图, 插值分割图
     gt_seg_map = get_seg_map(gt_seg_map0, size=(UNIT_H, UNIT_W), text='GT')
     pre_seg_map = get_seg_map(pre_seg_map0, size=(UNIT_H, UNIT_W), text='Pre')
-    gt_seg_level_map = get_seg_map(gt_seg_level_map0, size=(UNIT_H, UNIT_W), text='GT')
-    pre_seg_level_map = get_seg_map(pre_seg_level_map0, size=(UNIT_H, UNIT_W), text='Pre')
+    gt_seg_level_map = get_seg_level_map(gt_seg_level_map0, size=(UNIT_H, UNIT_W), text='GT')
+    pre_seg_level_map = get_seg_level_map(pre_seg_level_map0, size=(UNIT_H, UNIT_W), text='Pre')
     seg_maps = [gt_seg_map, pre_seg_map, gt_seg_level_map, pre_seg_level_map]
     for seg_map in [s for s in seg_maps if s is not None]:
         imgs.append(seg_map)
@@ -442,3 +466,57 @@ def get_seg_map(seg_map0, size, text):
         cv2.putText(seg_map, text, (100, 150), cv2.FONT_HERSHEY_SIMPLEX, 3, RGB_R, thickness=2)
 
     return Image.fromarray(seg_map)
+
+def get_seg_level_map(seg_map0, size, text):
+    if seg_map0 is None:
+        return None
+
+    max_level = int(seg_map0.max().item())
+    colors = color_map[:max_level+1]
+
+    seg_map0 = seg_map0.float().detach().to('cpu')
+    seg_map0 = F.interpolate(seg_map0.unsqueeze(0), size=size).squeeze(0).numpy()
+
+    # 使用颜色映射将分割图转换为彩色图像
+    color_seg_map = colors[seg_map0.astype(int)].squeeze(0).astype(np.uint8)
+
+    if text:
+        cv2.putText(color_seg_map, text, (100, 150), cv2.FONT_HERSHEY_SIMPLEX,
+                    5, (255, 255, 255), thickness=4)
+    return Image.fromarray(color_seg_map)
+
+
+def compute_image_level(points, H, W, num):
+    """
+    Compute crowd density:
+        - defined as the average nearest distance between ground-truth points
+    """
+    if len(points)==0:
+        return np.full((H, W), 10000)  / 200
+
+    y = torch.arange(0, H)
+    x = torch.arange(0, W)
+    grid_y, grid_x = torch.meshgrid(y, x, indexing="ij")
+    grid_points = torch.vstack([grid_y.flatten(), grid_x.flatten()]).permute(1, 0).float()
+    points_tensor = torch.from_numpy(points[:, ::-1].copy()).float()
+
+    # tmp_grid_points = grid_points.unsqueeze(1)
+    # points_tensor = points_tensor.unsqueeze(0)
+    # indexes =  points[:, 0] > grid_points[:, 0] + 100
+
+    dist = torch.cdist(grid_points, points_tensor, p=2)
+
+    # if points_tensor.shape[0] > 1:
+    nearest_num = min(points_tensor.shape[0], num)
+
+    if len(grid_points) > 300000:
+        dens = []
+        chunks = torch.chunk(dist, 100)
+        for chunk in chunks:
+            den = chunk.sort(dim=1)[0][:, 0:nearest_num].mean(dim=1)
+            dens.append(den)
+        density = torch.cat(dens, dim=0).cpu().reshape(H, W).numpy()
+    else:
+        density = dist.sort(dim=1)[0][:, 0:nearest_num].mean(dim=1).reshape(H, W).cpu().numpy()
+
+    return density / 100
