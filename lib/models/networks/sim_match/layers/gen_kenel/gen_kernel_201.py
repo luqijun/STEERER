@@ -77,7 +77,8 @@ class GenerateKernelLayer201(nn.Module):
             if i == len(self.kernel_blocks)-1:
                 src_pos = self.pe_layer(src.shape[-2:]).unsqueeze(0)
                 b, c, h, w = x.shape
-                query = x.flatten(2).permute(0, 2, 1)
+                query_pos = self.pe_layer(x.shape[-2:]).unsqueeze(0).flatten(2).permute(0, 2, 1)
+                query = x.flatten(2).permute(0, 2, 1) + query_pos
                 x, src = self.twoway_trans(src, src_pos, query, None, None)
                 x = x.permute(0, 2, 1).view(b, c, h, w)
 
@@ -191,6 +192,72 @@ class GenerateKernelLayer201_v1(GenerateKernelLayer201):
 
         # conv6 = self.make_conv_layer(hidden_channels, 3, 1, p1=1, p2=0)  # 1*1
         kernel_blocks = [conv1, conv2]
+
+        # 创建不同的dialation kernel
+        extra_conv_group = []
+        return kernel_blocks, extra_conv_group
+
+
+class GenerateKernelLayer201_v2(GenerateKernelLayer201):
+    def __init__(self, config):
+        super(GenerateKernelLayer201_v2, self).__init__(config)
+        hidden_channels = config.gen_kernel.get("hidden_channels", 256)
+        self.load_model = None
+        self.config = config
+        self.hidden_channels = hidden_channels
+        self.kernel_num = 1
+
+        # dense net
+        self.dsnet = DenseScaleNet(hidden_channels, hidden_channels, hidden_channels//2)
+
+        # two way transformer
+        self.twoway_trans = TwoWayTransformer(depth=2,
+                                              embedding_dim=hidden_channels,
+                                              mlp_dim=2048,
+                                              num_heads=8,)
+
+        # position encoding
+        self.pe_layer = PositionEmbeddingRandom(hidden_channels // 2)
+
+        self.relu = nn.ReLU(True)
+
+        # 初级的提取
+        self.dilation_num = 1
+        kernel_blocks, extra_conv_kernels = self.make_kernel_extractor_v2(config, hidden_channels, feature_size=(5, 5))
+        self.kernel_blocks = nn.Sequential(*kernel_blocks)
+        self.extra_conv_kernels = nn.Sequential(*extra_conv_kernels)
+
+        self.kernel_list = None
+
+        # 转换kernel
+        kernel_tran_layers = []
+        kernel_tran_layers_list = []
+        for i, c in enumerate(self.config.head.stages_channel):
+            for _ in range(self.kernel_num):
+                kernel_tran_layers.append(
+                    TransitionLayer(hidden_channels, hidden_channels,
+                                    hidden_channels=hidden_channels // 2))
+            kernel_tran_layers_list.append(nn.Sequential(*kernel_tran_layers))
+        self.kernel_tran_layers_list = nn.Sequential(*kernel_tran_layers_list)
+
+        # upsample
+        self.upsample_block = make_head_layer(self.dilation_num, self.dilation_num)
+        self.upsample_block_copy = make_head_layer(self.dilation_num, self.dilation_num)
+
+        # _initialize_weights(self)
+
+
+    def make_kernel_extractor_v2(self, config, hidden_channels, feature_size=(7, 7)):
+
+        conv1 = make_conv_layer(hidden_channels, 3, 1, 1)
+        conv2 = make_conv_layer(hidden_channels, 3, 1, 1)
+        conv3 = make_conv_layer(hidden_channels, 3, 1, 1)
+        conv4 = make_conv_layer(hidden_channels, 3, 1, 1)
+        conv5 = make_conv_layer(hidden_channels, 3, 2)  # 3*3
+
+
+        # conv6 = self.make_conv_layer(hidden_channels, 3, 1, p1=1, p2=0)  # 1*1
+        kernel_blocks = [conv1, conv2, conv3, conv4, conv5]
 
         # 创建不同的dialation kernel
         extra_conv_group = []
