@@ -1,0 +1,25 @@
+
+基于密度图方法：
+=====使用4个查询向量====
+SHHA_final_209_v1_1.local.py：在mask2former中，使用4个查询向量获得4个分割图像（人头大小不同）。使用transformer结构生成密度图， 2层。获得结果56.45。[mask2former_head_v2_2.py]
+SHHA_final_209_v1_2.local.py：在mask2former中，使用4个查询向量获得4个分割图像（人头大小不同）。使用transformer结构生成密度图， 1层。[mask2former_head_v2_2.py]
+
+
+
+
+基于点查询的方法：
+=====P2PNet系列 使用vgg16====
+SHHA_p2pnet.py：完全复刻P2PNet 2024.05.25 （重构）
+vgg_SHHA_final_210_v2_6.local.py：完全复刻P2PNet
+vgg_SHHA_final_210_v2_6_1.local.py: 辅助stage3，构造stage4，生成4个不同scale的特征图
+vgg_SHHA_final_210_v2_6_2.local.py： 在vgg_SHHA_final_210_v2_6.local.py基础上，使用256*256训练大小
+vgg_SHHA_final_210_v2_6_3.local.py： 在vgg_SHHA_final_210_v2_6_1.local.py:基础上，使用256*256训练大小
+vgg_SHHA_final_210_v2_6_4.local.py：完全复刻P2PNet + msdetr特征 + fpn
+vgg_SHHA_final_210_v2_6_5.local.py：完全复刻P2PNet + 预测mask, 在mask内的多加上0.2
+
+vgg_SHHA_final_210_v2_7.local.py：复刻P2PNet, 但使用vgg19_bn
+
+=====PET系列====
+
+
+

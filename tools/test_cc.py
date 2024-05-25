@@ -11,7 +11,6 @@ from lib.core.Counter import Counter
 from lib.utils.utils import create_logger, random_seed_setting
 from lib.utils.modelsummary import get_model_summary
 from lib.core.cc_function import test_cc
-import datasets
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch
@@ -20,12 +19,18 @@ import timeit
 import time
 import logging
 import argparse
-from lib.models.build_counter import Baseline_Counter
+from lib.datasets.build_dataset import build_dataset
+from lib.models.build_counter import build_counter
+from lib.core.TesterBase import build_tester
 from lib.utils.dist_utils import (
     get_dist_info,
     init_dist)
-from mmcv import Config, DictAction
+# from mmcv import Config, DictAction
+from mmengine.config import Config, DictAction
 
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning, message='TypedStorage is deprecated')
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Test crowd counting network')
@@ -96,8 +101,9 @@ def main():
 
     # build model
     device = torch.device('cuda:{}'.format(args.local_rank))
+    config.device = device
 
-    model = Baseline_Counter(config.network,config.dataset.den_factor,config.train.route_size,device)
+    model = build_counter(config)
 
     # dump_input = torch.rand(
     #     (1, 3, config.TRAIN.IMAGE_SIZE[1], config.TRAIN.IMAGE_SIZE[0])
@@ -123,14 +129,7 @@ def main():
     model = model.to(device)
 
     # prepare data
-    test_dataset = eval('datasets.' + config.dataset.name)(
-        root=config.dataset.root,
-        list_path=config.dataset.test_set,
-        num_samples=None,
-        multi_scale=False,
-        flip=False,
-        base_size=config.test.base_size,
-        downsample_rate=1)
+    _, test_dataset = build_dataset(config)
 
     testloader = torch.utils.data.DataLoader(
         test_dataset,
@@ -139,12 +138,14 @@ def main():
         num_workers=8,  # config.WORKERS,
         pin_memory=True)
 
+    tester = build_tester(config)
+
     start = timeit.default_timer()
     if 'test' in  config.dataset.test_set or 'val' in config.dataset.test_set:
 
-        mae, mse, nae,save_count_txt = test_cc(config, test_dataset, testloader, model,
+        mae, mse, nae,save_count_txt = tester.test_cc(config, test_dataset, testloader, model,
                                 test_dataset.mean, test_dataset.std,
-                                sv_dir=final_output_dir, sv_pred=False,logger=logger
+                                sv_dir=final_output_dir, sv_pred=True, logger=logger
                                 )
 
         msg = 'mae: {: 4.4f}, mse: {: 4.4f}, \

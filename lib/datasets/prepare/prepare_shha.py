@@ -12,14 +12,15 @@ import glob
 import torch
 import torch.nn.functional as F
 mode = 'train'
-Root = '/mnt/petrelfs/hantao/ProcessedData/part_A_final'
+Root = '/mnt/e/MyDocs/Code/Datasets/ShangHaiTech/ShanghaiTech/part_A_final'
+out_put_dir = '/mnt/e/MyDocs/Code/Datasets/ShangHaiTech/ShanghaiTech/SHHA_Custom2'
 train_path =  os.path.join(Root,'train_data')
 test_path =  os.path.join(Root,'test_data')
 
 
-dst_imgs_path = os.path.join(Root,'images')
-dst_mask_path = os.path.join(Root,'mask')
-dst_json_path = os.path.join(Root,'jsons')
+dst_imgs_path = os.path.join(out_put_dir,'images')
+dst_mask_path = os.path.join(out_put_dir,'mask')
+dst_json_path = os.path.join(out_put_dir,'jsons')
 
 cycle  =False
 
@@ -103,7 +104,7 @@ def writer_jsons():
 
             annPoints[:, 0]=  annPoints[:, 0] * w_rate
             annPoints[:, 1] = annPoints[:, 1] * h_rate
-            annPoints = annPoints.astype(int)
+            annPoints = annPoints.round().astype(int)
             # print(annPoints)
 
 
@@ -429,8 +430,8 @@ def loc_gt_make(  mode = 'test'):
 if __name__ == '__main__':
 
     #================1. resize images ===================
-    resize_images(train_path, 0,resize_factor=1)
-    resize_images(test_path, 300,resize_factor=1)
+    # resize_images(train_path, 0,resize_factor=1)
+    # resize_images(test_path, 300,resize_factor=1)
 
     # # ================2. size_map ==================
     # from datasets.dataset_prepare.scale_map import main

@@ -19,7 +19,12 @@ def build_counter(config):
     model_class = getattr(module, model_name)
 
     # 创建模型对象
-    model = model_class(config.network,config.dataset.den_factor,config.train.route_size, config.device)
+    model_args = []
+    model_args.append(config.dataset.get('den_factor', None))
+    model_args.append(config.train.get('route_size', None))
+    model_args.append(config.device)
+    config.network.device = config.device
+    model = model_class(config.network, *model_args)
 
     return model
 

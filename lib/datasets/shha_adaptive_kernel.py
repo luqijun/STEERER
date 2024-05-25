@@ -284,6 +284,7 @@ class SHHA_Adaptive_Kernel(BaseDataset):
         if is_flip:
             flip = np.random.choice(2) * 2 - 1
             image = image[:, :, ::flip]
+            den_map = den_map[:, ::flip]
             for i in range(len(label)):
                 label[i] = label[i][:, ::flip].copy()
 

@@ -20,7 +20,8 @@ from tensorboardX import SummaryWriter
 from lib.utils.dist_utils import (
     get_dist_info,
     init_dist)
-from mmcv import Config, DictAction
+# from mmcv import Config, DictAction
+from mmengine.config import Config, DictAction
 import lib.datasets as datasets
 from lib.core.criterion import MSE, CrossEntropy, OhemCrossEntropy
 from lib.core.TrainerBase import build_trainer
@@ -31,7 +32,7 @@ from lib.utils.utils import create_logger, random_seed_setting, copy_cur_env
 from lib.core.Counter import *
 from bisect import bisect_right
 from lib.datasets.build_dataset import build_dataset
-from lib.datasets.utils.collate import default_collate
+from lib.datasets.utils.collate import get_collate
 from lib.models.build_counter import build_counter
 import argparse
 from lib.solver.build import build_optimizer_cls
@@ -207,7 +208,7 @@ def main():
         pin_memory=True,
         drop_last=True,
         persistent_workers=True,
-        collate_fn=default_collate,
+        collate_fn=get_collate(config),
         sampler=train_sampler)
 
     if distributed:
@@ -221,7 +222,7 @@ def main():
         shuffle=False,
         num_workers=config.workers,
         pin_memory=True,
-        collate_fn=default_collate,
+        collate_fn=get_collate(config),
         sampler=test_sampler)
 
 
@@ -287,7 +288,7 @@ def main():
             }, os.path.join(train_log_dir, filename))
 
         # 默认保存训练模型频次
-        save_freq  = config.train.get('save_freq', 10)
+        save_freq  = config.train.get('save_freq', 20)
         if (epoch+1) % save_freq == 0:
             logger.info('=> saving checkpoint to {}'.format(train_log_dir + '/checkpoint.pth.tar'))
             save_checkpoint('checkpoint.pth.tar')
@@ -314,21 +315,21 @@ def main():
                     best_mae = mae
                     torch.save(model.module.state_dict(), pth_file_name)
                     if os.path.exists(f'{train_log_dir}/checkpoint.pth.tar'):
-                        shutil.copyfile(f'{train_log_dir}/checkpoint.pth.tar', f'{train_log_dir}/checkpoint.pth.tar_best_mae_before')
+                        shutil.copyfile(f'{train_log_dir}/checkpoint.pth.tar', f'{train_log_dir}/checkpoint.pth.tar_best_mae_before_Ep_{str(epoch)}')
                     best_mae_vis_val_dir = train_log_dir + '/vis_val_best_mae'
                     copy_cur_env(vis_val_dir, best_mae_vis_val_dir, [])
-                    logger.info('=> saving best mae checkpoint to {}'.format(train_log_dir + '/checkpoint.pth.tar'))
+                    logger.info('=> saving best mae checkpoint to {}'.format(train_log_dir + '/checkpoint.pth.tar.tar_best_mae'))
                     save_checkpoint('checkpoint.pth.tar_best_mae')
 
                 if mse < best_mse:
                     best_mse = mse
                     torch.save(model.module.state_dict(), pth_file_name)
-                    best_mse_vis_val_dir = train_log_dir + '/vis_val_best_mse'
-                    if os.path.exists(f'{train_log_dir}/checkpoint.pth.tar'):
-                        shutil.copyfile(f'{train_log_dir}/checkpoint.pth.tar', f'{train_log_dir}/checkpoint.pth.tar_best_mse_before')
-                    copy_cur_env(vis_val_dir, best_mse_vis_val_dir, [])
-                    logger.info('=> saving best mse checkpoint to {}'.format(train_log_dir + '/checkpoint.pth.tar'))
-                    save_checkpoint('checkpoint.pth.tar_best_mse')
+                    # best_mse_vis_val_dir = train_log_dir + '/vis_val_best_mse'
+                    # if os.path.exists(f'{train_log_dir}/checkpoint.pth.tar'):
+                    #     shutil.copyfile(f'{train_log_dir}/checkpoint.pth.tar', f'{train_log_dir}/checkpoint.pth.tar_best_mse_before_Ep_{str(epoch)}')
+                    # copy_cur_env(vis_val_dir, best_mse_vis_val_dir, [])
+                    # logger.info('=> saving best mse checkpoint to {}'.format(train_log_dir + '/checkpoint.pth.tar.tar_best_mse'))
+                    # save_checkpoint('checkpoint.pth.tar_best_mse')
 
                 msg = 'Loss: {:.3f}, MAE: {: 4.2f}, Best_MAE: {: 4.4f} ' \
                       'MSE: {: 4.4f},Best_MSE: {: 4.4f}'.format(

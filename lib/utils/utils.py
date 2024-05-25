@@ -233,6 +233,89 @@ color_map = np.array([
     [255, 70, 70]   # 类别19的颜色
 ])
 
+def save_img_to_desktop(color_map, filename='123_test.jpg'):
+    img = Image.fromarray(color_map)
+    img.save(os.path.join('/mnt/c/Users/lqjun/Desktop', filename))
+
+
+def save_results_points_with_seg_map(config, iter, exp_path, img0,
+                                     pre_points=None, gt_points=None,
+                                     pre_seg_map0=None, gt_seg_map0=None):  # , flow):
+
+    # 转换成hw格式
+    points_format = config.dataset.get('points_format', "hw")
+    if points_format == 'wh':
+        gt_points = gt_points[..., ::-1]
+        pre_points = pre_points[..., ::-1]
+
+    # gt_cnt = gt_map0.sum().item()
+    # pre_cnt = pre_map0.sum().item()
+    pil_to_tensor = standard_transforms.ToTensor()
+    tensor_to_pil = standard_transforms.ToPILImage()
+
+    UNIT_H, UNIT_W = img0.size(1), img0.size(2)
+    pre_points[:, 0] *= UNIT_H
+    pre_points[:, 1] *= UNIT_W
+
+    img0 = img0.detach().to('cpu')
+    pil_input0 = tensor_to_pil(img0)
+
+    # mask_color_map = cv2.applyColorMap((255 * tensor[8]).astype(np.uint8).squeeze(), cv2.COLORMAP_JET)
+    RGB_R = (255, 0, 0)
+    RGB_G = (0, 255, 0)
+
+    BGR_R = (0, 0, 255)  # BGR
+    BGR_G = (0, 255, 0)  # BGR
+    thickness = 2
+    pil_input0 = np.array(pil_input0)
+
+    if pre_points is not None:
+        for i, point in enumerate(pre_points.detach().cpu().numpy(), 0):
+            point = point.astype(np.int32)
+            point = (point[1], point[0])
+            cv2.drawMarker(pil_input0, point, RGB_G, markerType=cv2.MARKER_CROSS, markerSize=10, thickness=thickness)
+            # cv2.drawMarker(pil_input0, point, RGB_R, markerType=cv2.MARKER,markerSize=20,thickness=3)
+
+    if gt_points is not None:
+        for i, point in enumerate(gt_points.detach().cpu().numpy(), 0):
+            point = point.astype(np.int32)
+            point = (point[1], point[0])
+            cv2.circle(pil_input0, point, 3, RGB_R, thickness)
+
+    gt_text_loc = (20, 30) if UNIT_W <= 256 else (100, 150) # (UNIT_W * 0.1, UNIT_H * 0.15)
+    pre_text_loc = (20, 70) if UNIT_W <= 256 else (100, 350) # (UNIT_W * 0.1, UNIT_H * 0.35)
+    font_scale = 1 if UNIT_W <= 256 else 3
+    text_thickness = 1 if UNIT_W <= 256 else 2
+    cv2.putText(pil_input0, 'GT:' + str(len(gt_points)), gt_text_loc, cv2.FONT_HERSHEY_SIMPLEX,
+                font_scale, (255, 100, 0), thickness=text_thickness)
+    cv2.putText(pil_input0, 'Pre:' + str(len(pre_points)), pre_text_loc, cv2.FONT_HERSHEY_SIMPLEX,
+                font_scale, (100, 255, 0), thickness=text_thickness)
+
+    pil_input0 = Image.fromarray(pil_input0)
+
+    imgs = [pil_input0]
+
+    # 显示分割图, 插值分割图
+    if gt_seg_map0 is not None and pre_seg_map0 is not None:
+        gt_seg_map = get_seg_map(gt_seg_map0, size=(UNIT_H, UNIT_W), text='GT')
+        pre_seg_map = get_seg_map(pre_seg_map0, size=(UNIT_H, UNIT_W), text='Pre')
+
+        seg_maps = [gt_seg_map, pre_seg_map]
+        for seg_map in [s for s in seg_maps if s is not None]:
+            imgs.append(seg_map)
+
+    # 保存图片 从左到右，从上到下
+    w_num, h_num = 3, 1
+    target_shape = (w_num * (UNIT_W + 10), h_num * (UNIT_H + 10))
+    target = Image.new('RGB', target_shape)
+    count = 0
+    for img in imgs:
+        if count > 0 and count % w_num==0:
+            count += 1 # 第一列不填充
+        x, y = int(count % w_num) * (UNIT_W + 10), int(count // w_num) * (UNIT_H + 10)  # 左上角坐标，从左到右递增
+        target.paste(img, (x, y, x + UNIT_W, y + UNIT_H))
+        count += 1
+    target.save(os.path.join(exp_path, '{}_vis.jpg'.format(iter)))
 
 def save_results_more_with_seg_map(iter, exp_path, img0,
                                    pre_map0, gt_map0,

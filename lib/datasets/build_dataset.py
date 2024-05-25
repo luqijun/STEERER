@@ -1,14 +1,18 @@
 import lib.datasets as datasets
 
 def build_dataset(config):
+
     if config.dataset.name == "SHHA_Chf":
-        return build_dataset_shha_chf(config)
+        return build_dataset_with_config(config)
 
     if config.dataset.name.find("Sim_Match") != -1:
-        return build_dataset_shha_chf(config)
+        return build_dataset_with_config(config)
 
     if config.dataset.name.find("Adaptive") != -1:
-        return build_dataset_shha_chf(config)
+        return build_dataset_with_config(config)
+
+    if config.dataset.name.find("P2PNet") != -1:
+        return build_dataset_with_config(config)
 
     # default
     train_dataset = eval('datasets.' + config.dataset.name)(
@@ -39,7 +43,7 @@ def build_dataset(config):
     return train_dataset, test_dataset
 
 
-def build_dataset_shha_chf(config):
+def build_dataset_with_config(config):
     train_dataset = eval('datasets.' + config.dataset.name)(
         config=config,
         root=config.dataset.root,

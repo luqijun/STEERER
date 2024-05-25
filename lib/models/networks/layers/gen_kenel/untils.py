@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from lib.models.networks.sim_match.layers.position_encoding import PositionEmbeddingSine, PositionEmbeddingRandom
 from typing import Tuple
+from functools import partial
 
 def conv_with_kernel(input, kernel):
     sim_maps =[]
@@ -90,8 +90,10 @@ def make_kernel_extractor_adaptive(hidden_channels, feature_size=(7, 7)):
     #                        nn.BatchNorm2d(hidden_channels // 2),
     #                        nn.ReLU(True),
     #                        nn.Conv2d(hidden_channels // 2, hidden_channels, 3, 1, padding=1)])
-    return nn.Sequential(*[nn.Conv2d(hidden_channels, hidden_channels // 2, 3, 1, padding=1),
-                           nn.AdaptiveAvgPool2d(output_size=feature_size),
+    return nn.Sequential(*[nn.AdaptiveAvgPool2d(output_size=feature_size),
+                           nn.Conv2d(hidden_channels, hidden_channels // 2, 3, 1),
+                           nn.BatchNorm2d(hidden_channels // 2),
+                           nn.ReLU(True),
                            nn.Conv2d(hidden_channels // 2, hidden_channels // 2, 3, 1),
                            nn.BatchNorm2d(hidden_channels // 2),
                            nn.ReLU(True),
@@ -163,6 +165,76 @@ def make_head_layer(input_cahnnels=1, hidden_channels=3):
                            nn.Conv2d(hidden_channels, 1, 3, 1, 1)])
 
 
+def make_head_layer1(input_cahnnels=1, hidden_channels=3):
+    return nn.Sequential(*[nn.Conv2d(input_cahnnels, hidden_channels, 3, 1, 1),
+                           nn.BatchNorm2d(hidden_channels),
+                           nn.ReLU(True),
+                           nn.Upsample(scale_factor=2, mode='bilinear'),
+                           nn.Conv2d(hidden_channels, hidden_channels // 2, 3, 1, 1),
+                           nn.BatchNorm2d(hidden_channels // 2),
+                           nn.ReLU(True),
+                           nn.Upsample(scale_factor=2, mode='bilinear'),
+                           nn.Conv2d(hidden_channels // 2, 1, 3, 1, 1),
+                           nn.ReLU(True)])
+
+def make_head_layer2(input_cahnnels=1, hidden_channels=3):
+    return nn.Sequential(*[nn.Conv2d(input_cahnnels, hidden_channels, 3, 1, 1),
+                           nn.ReLU(True),
+                           nn.Upsample(scale_factor=2, mode='bilinear'),
+                           nn.Conv2d(hidden_channels, hidden_channels // 2, 3, 1, 1),
+                           nn.ReLU(True),
+                           nn.Upsample(scale_factor=2, mode='bilinear'),
+                           nn.Conv2d(hidden_channels // 2, 1, 3, 1, 1),
+                           nn.ReLU(True)])
+
+
+def multi_apply(func, *args, **kwargs):
+    """Apply function to a list of arguments.
+
+    Note:
+        This function applies the ``func`` to multiple inputs and
+        map the multiple outputs of the ``func`` into different
+        list. Each list contains the same type of outputs corresponding
+        to different inputs.
+
+    Args:
+        func (Function): A function that will be applied to a list of
+            arguments
+
+    Returns:
+        tuple(list): A tuple containing multiple list, each list contains \
+            a kind of returned results by the function
+    """
+    pfunc = partial(func, **kwargs) if kwargs else func
+    map_results = map(pfunc, *args)
+    res = tuple(map(list, zip(*map_results)))
+    return res
+
 def freeze_model(model):
     for (name, param) in model.named_parameters():
         param.requires_grad = False
+
+
+
+
+class MLP(nn.Module):
+    """
+    Multi-layer perceptron (also called FFN)
+    """
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers, is_reduce=False, use_relu=True):
+        super().__init__()
+        self.num_layers = num_layers
+        if is_reduce:
+            h = [hidden_dim//2**i for i in range(num_layers - 1)]
+        else:
+            h = [hidden_dim] * (num_layers - 1)
+        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
+        self.use_relu = use_relu
+
+    def forward(self, x):
+        for i, layer in enumerate(self.layers):
+            if self.use_relu:
+                x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
+            else:
+                x = layer(x)
+        return x

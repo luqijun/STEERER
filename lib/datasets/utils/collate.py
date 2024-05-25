@@ -9,6 +9,9 @@ import torch
 import numpy as np
 import re
 from torch.utils.data._utils.collate import default_collate
+from typing import Optional, List
+from torch import Tensor
+
 TORCH_MAJOR = int(torch.__version__.split('.')[0])
 TORCH_MINOR = int(torch.__version__.split('.')[1])
 if TORCH_MAJOR == 1 and TORCH_MINOR < 8:
@@ -61,6 +64,10 @@ def assign_storage(batch_tensors, stack=True):
         return torch.cat(batch_tensors, dim=0, out=out)
 
 
+def get_collate(config):
+    collate_name = config.dataset.get('collate', 'default_collate')
+    return eval(collate_name)
+
 def default_collate2(batch):
 
     images = []
@@ -100,7 +107,6 @@ def default_collate2(batch):
         names_arr = [name_list, name_index, name_resize_factor]
 
     return images, labels, sizes, names_arr, point_lens, points_list, target_list
-
 
 def default_collate(batch):
     r"""Puts each data field into a tensor with outer dimension batch size"""
@@ -151,7 +157,8 @@ def default_collate(batch):
     elif isinstance(elem, string_classes):
         return batch
     elif isinstance(elem, container_abcs.Mapping):
-        return {key: default_collate([d[key] for d in batch]) for key in elem}
+        return batch
+        # return {key: default_collate([d[key] for d in batch]) for key in elem}
     elif isinstance(elem, tuple) and hasattr(elem, '_fields'):  # namedtuple
         return elem_type(*(default_collate(samples)
                          for samples in zip(*batch)))
@@ -166,3 +173,48 @@ def default_collate(batch):
         return [default_collate(samples) for samples in transposed]
 
     raise TypeError(default_collate_err_msg_format.format(elem_type))
+
+def p2pnet_collate(batch):
+    # re-organize the batch
+    batch_new = []
+    for b in batch:
+        imgs, points = b
+        if imgs.ndim == 3:
+            imgs = imgs.unsqueeze(0)
+        for i in range(len(imgs)):
+            batch_new.append((imgs[i, :, :, :], points[i]))
+    batch = batch_new
+    batch = list(zip(*batch))
+    batch[0] = nested_tensor_from_tensor_list(batch[0])
+    return tuple(batch)
+
+def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
+    # TODO make this more general
+    if tensor_list[0].ndim == 3:
+
+        # TODO make it support different-sized images
+        max_size = _max_by_axis_pad([list(img.shape) for img in tensor_list])
+        # min_size = tuple(min(s) for s in zip(*[img.shape for img in tensor_list]))
+        batch_shape = [len(tensor_list)] + max_size
+        b, c, h, w = batch_shape
+        dtype = tensor_list[0].dtype
+        device = tensor_list[0].device
+        tensor = torch.zeros(batch_shape, dtype=dtype, device=device)
+        for img, pad_img in zip(tensor_list, tensor):
+            pad_img[: img.shape[0], : img.shape[1], : img.shape[2]].copy_(img)
+    else:
+        raise ValueError('not supported')
+    return tensor
+
+def _max_by_axis_pad(the_list):
+    # type: (List[List[int]]) -> List[int]
+    maxes = the_list[0]
+    for sublist in the_list[1:]:
+        for index, item in enumerate(sublist):
+            maxes[index] = max(maxes[index], item)
+
+    block = 128
+
+    for i in range(2):
+        maxes[i+1] = ((maxes[i+1] - 1) // block + 1) * block
+    return maxes

@@ -12,3 +12,7 @@ from .smc205_v2 import *
 from .smc205_v3 import *
 from .smc206 import *
 from .smc207 import *
+from .smc208 import *
+from .smc208_depth import *
+from .smc209 import *
+from .smc210 import *

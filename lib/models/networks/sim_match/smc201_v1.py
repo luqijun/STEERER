@@ -3,11 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from lib.models.backbones.backbone_selector import BackboneSelector
 from lib.models.heads.head_selector import HeadSelector
-from lib.models.heads.moe import upsample_module
 from lib.utils.Gaussianlayer import Gaussianlayer
-import math
-from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, build_gen_kernel
-import logging
+from lib.models.networks.layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, build_gen_kernel
+
 
 # 将每一层向上采用拼接， 高层级特征生成共性特征kernel， 每一层预测Density Map， Similarity Map， Segmentation Map,
 # 直接计算误差和分割误差

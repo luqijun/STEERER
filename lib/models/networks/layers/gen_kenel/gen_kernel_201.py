@@ -1,12 +1,7 @@
-import torch.nn as nn
-import torch.nn.functional as F
-from lib.models.networks.sim_match.layers.dsnet import DenseScaleNet
-from lib.models.networks.sim_match.layers.transition import TransitionLayer
-from lib.models.networks.sim_match.layers.nested_tensor import NestedTensor
-from lib.models.networks.sim_match.layers.position_encoding import PositionEmbeddingSine, PositionEmbeddingRandom
-from lib.models.networks.sim_match.layers.trans_decoder_wrapper import TransDecoderWrapperLayer2
-from lib.models.networks.sim_match.layers.twoway_transformer import TwoWayTransformer
-from typing import Tuple
+from lib.models.networks.layers.dsnet import DenseScaleNet
+from lib.models.networks.layers.transition import TransitionLayer
+from lib.models.networks.layers.position_encoding import PositionEmbeddingRandom
+from lib.models.networks.layers.twoway_transformer import TwoWayTransformer
 from .untils import *
 
 class GenerateKernelLayer201(nn.Module):

@@ -3,11 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from lib.models.backbones.backbone_selector import BackboneSelector
 from lib.models.heads.head_selector import HeadSelector
-from lib.models.heads.moe import upsample_module
 from lib.utils.Gaussianlayer import Gaussianlayer
-import math
-from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, build_gen_kernel
-import logging
+from lib.models.networks.layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, build_gen_kernel
+
 
 # 在201基础上，使用（192，192）输入，通过avgPooling+conv生成卷积核，效果很差
 

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from lib.models.backbones.backbone_selector import BackboneSelector
 from lib.models.heads.head_selector import HeadSelector
 # from lib.utils.Gaussianlayer import Gaussianlayer
-from .layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, GenerateKernelLayer21
+from lib.models.networks.layers import Gaussianlayer, DenseScaleNet, TransitionLayer, SegmentationLayer, GenerateKernelLayer21
 import logging
 
 # counter31基础伤改用instance normal

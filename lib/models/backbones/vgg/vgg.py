@@ -10,13 +10,29 @@ model_urls = {
 
     'vgg16': "https://download.pytorch.org/models/vgg16-397923af.pth",
     'vgg16_bn': "https://download.pytorch.org/models/vgg16_bn-6c64b313.pth",
+    'vgg16_bn_4scale': "https://download.pytorch.org/models/vgg16_bn-6c64b313.pth",
     'vgg19': 'https://download.pytorch.org/models/vgg19-dcbb9e9d.pth',
     'vgg19_bn': 'https://download.pytorch.org/models/vgg19_bn-c79401a0.pth'
 }
 class VGG(nn.Module):
     def __init__(self, arch, pretrained_path):
         super(VGG, self).__init__()
+        self.arch = arch
         if arch == 'vgg16_bn':
+            vgg = models.vgg16_bn()
+            vgg.load_state_dict(model_zoo.load_url(model_urls[arch],pretrained_path) )
+            features = list(vgg.features.children())
+
+            # self.stage1 = nn.Sequential(*features[0:23])
+            # self.stage2 = nn.Sequential(*features[23:33])
+            # self.stage3 = nn.Sequential(*features[33:43])
+
+            self.stage1 = nn.Sequential(*features[:13])
+            self.stage2 = nn.Sequential(*features[13:23])
+            self.stage3 = nn.Sequential(*features[23:33])
+            self.stage4 = nn.Sequential(*features[33:43])
+
+        elif arch == 'vgg16_bn_4scale':
             vgg = models.vgg16_bn()
             vgg.load_state_dict(model_zoo.load_url(model_urls[arch],pretrained_path) )
             features = list(vgg.features.children())
@@ -24,6 +40,7 @@ class VGG(nn.Module):
             self.stage1 = nn.Sequential(*features[0:23])
             self.stage2 = nn.Sequential(*features[23:33])
             self.stage3 = nn.Sequential(*features[33:43])
+            self.stage4 = copy.deepcopy(self.stage3)
 
         elif arch == 'vgg19_bn':
             vgg = models.vgg19_bn()
@@ -91,13 +108,14 @@ class VGGBackbone(object):
         arch = self.configer.sub_arch
 
         if arch in [
+            "vgg16_bn",
+            "vgg16_bn_4scale",
             "vgg19_bn",
             "vgg19",
         ]:
             arch_net = VGG(
                 arch,self.configer.pretrained_backbone
             )
-
         else:
             raise Exception("Architecture undefined!")
 
