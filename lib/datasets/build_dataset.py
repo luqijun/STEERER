@@ -1,4 +1,5 @@
 import lib.datasets as datasets
+from .pet import build_pet_dataset
 
 def build_dataset(config):
 
@@ -13,6 +14,9 @@ def build_dataset(config):
 
     if config.dataset.name.find("P2PNet") != -1:
         return build_dataset_with_config(config)
+
+    if config.dataset.name.find("PET") != -1:
+        return build_pet_dataset_wrap(config)
 
     # default
     train_dataset = eval('datasets.' + config.dataset.name)(
@@ -70,4 +74,10 @@ def build_dataset_with_config(config):
         crop_size=config.train.image_size,
         min_unit=config.train.route_size,
         downsample_rate=1)
+    return train_dataset, test_dataset
+
+
+def build_pet_dataset_wrap(config):
+    train_dataset = build_pet_dataset('train', config.dataset)
+    test_dataset = build_pet_dataset('val', config.dataset)
     return train_dataset, test_dataset

@@ -34,3 +34,6 @@ from .urban_tree import TREE as TREE
 from .fdst import FDST as FDST
 
 
+from .pet import build_pet_dataset
+
+

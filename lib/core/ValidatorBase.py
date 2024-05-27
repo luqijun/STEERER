@@ -1,8 +1,12 @@
+import os.path
+
 import torch
 import torch.nn as nn
 import numpy as np
 from .cc_function import get_rank, get_world_size, AverageMeter, \
     allreduce_tensor, save_results_more, save_results_more_with_seg_map, reduce_tensor, save_results_points_with_seg_map
+from ..models.networks.layers import NestedTensor
+
 
 def build_validator(config):
     name = config.test.get("validator", None)
@@ -1058,6 +1062,119 @@ class Validator_Points_P2PNet:
                         pre_seg_crowd = get_seg_map_result(result, 'pre_seg_crowd', '1')
                         gt_seg_crowd = get_seg_map_result(result, 'gt_seg_crowd', '1')
                         save_results_points_with_seg_map(config, targets[0]['image_id'].item(), img_vis_dir, image.cpu().data, \
+                                                         pre_points, gt_points,
+                                                         pre_seg_map0= None if pre_seg_crowd is None else pre_seg_crowd[0].detach().cpu(),
+                                                         gt_seg_map0= None if gt_seg_crowd is None else gt_seg_crowd[0].detach().cpu())
+
+        print_loss = avg_loss.average() / world_size
+
+        mae = cnt_errors['mae'].avg / world_size
+        mse = np.sqrt(cnt_errors['mse'].avg / world_size)
+        nae = cnt_errors['nae'].avg / world_size
+
+        assert np.mean(maes) == mae
+        # assert np.sqrt(np.mean(mses)) == mse
+
+        if rank == 0:
+            writer = writer_dict['writer']
+            global_steps = writer_dict['valid_global_steps']
+            writer.add_scalar('valid_loss', print_loss, global_steps)
+            writer.add_scalar('valid_mae', mae, global_steps)
+            writer_dict['valid_global_steps'] = global_steps + 1
+
+        return print_loss, mae, mse, nae
+
+
+
+class Validator_Points_PET:
+
+    def validate(self, config, testloader, model, writer_dict, device,
+                 num_patches, img_vis_dir, mean, std):
+
+        rank = get_rank()
+        world_size = get_world_size()
+        model.eval()
+        avg_loss = AverageMeter()
+        cnt_errors = {'mae': AverageMeter(), 'mse': AverageMeter(),
+                      'nae': AverageMeter(), 'acc1': AverageMeter()}
+        maes = []
+        mses = []
+        with torch.no_grad():
+            for idx, batch in enumerate(testloader):
+                samples, targets, *args = batch
+                image = samples.to(device)
+
+                kwargs = {}
+                kwargs["epoch"] = -1
+                kwargs["targets"] = targets
+                label_maps = [tgt['label_map'] for tgt in kwargs["targets"]]
+                kwargs["label_map"] = [torch.stack(lm, dim=0).cuda() for lm in zip(*label_maps)]
+                result = model(image, kwargs["label_map"], 'val', *args, **kwargs)
+                outputs =  result
+                targets = outputs["targets"]
+
+                outputs_points = outputs['pred_points']
+                outputs_offsets = outputs['pred_offsets']
+
+                thrs = 0.5
+                out_scores = torch.nn.functional.softmax(outputs['pred_logits'], -1)[..., 1]
+                valid_indexs = out_scores > thrs
+                out_scores = out_scores[valid_indexs]
+                pre_points = outputs_points[valid_indexs]
+                # outputs_points = outputs_points[valid_indexs]
+                # outputs_offsets = outputs_offsets[valid_indexs]
+
+
+                #    -----------Counting performance-----------------
+
+                losses = torch.tensor(0.0) # result['losses']
+
+                # process predicted points
+                pred_cnt = torch.tensor(len(out_scores))
+                gt_cnt = torch.tensor(targets[0]['points'].shape[0])
+
+                # compute error
+                mae = abs(pred_cnt - gt_cnt)
+                mse = (pred_cnt - gt_cnt) * (pred_cnt - gt_cnt)
+                maes.append(mae.item())
+                mses.append(mse.item())
+
+                # print(f" rank: {rank} gt: {gt_count} pre: {pred_cnt}")
+                s_mae = mae
+                s_mse = mse
+
+                allreduce_tensor(s_mae)
+                allreduce_tensor(s_mse)
+                # acc1 = reduce_tensor(result['acc1']['error']/(result['acc1']['gt']+1e-10))
+                reduced_loss = reduce_tensor(losses)
+                # print(f" rank: {rank} mae: {s_mae} mse: {s_mse}"
+                #       f"loss: {reduced_loss}")
+                avg_loss.update(reduced_loss.item())
+                # cnt_errors['acc1'].update(acc1)
+                cnt_errors['mae'].update(s_mae.item())
+                cnt_errors['mse'].update(s_mse.item())
+
+                s_nae = (torch.abs(gt_cnt - pred_cnt) / (gt_cnt + 1e-10))
+                allreduce_tensor(s_nae)
+                cnt_errors['nae'].update(s_nae.item())
+
+                if rank == 0:
+                    save_vis = config.test.get('save_vis', False)
+                    save_vis_freq = config.test.get('save_vis_freq', 20)
+                    if save_vis and idx % save_vis_freq == 0:
+                        # acc1 = cnt_errors['acc1'].avg/world_size
+                        # print( f'acc1:{acc1}')
+                        image = image.tensors[0] if  isinstance(image, NestedTensor) else image[0]
+                        for t, m, s in zip(image, mean, std):
+                            t.mul_(s).add_(m)
+
+                        gt_points = targets[0]['points']
+                        pre_seg_crowd = get_seg_map_result(result, 'pre_seg_crowd', '1')
+                        gt_seg_crowd = get_seg_map_result(result, 'gt_seg_crowd', '1')
+
+                        image_name = os.path.basename(targets[0]['image_path'])
+                        image_id = os.path.splitext(image_name)[0]
+                        save_results_points_with_seg_map(config, image_id, img_vis_dir, image.cpu().data, \
                                                          pre_points, gt_points,
                                                          pre_seg_map0= None if pre_seg_crowd is None else pre_seg_crowd[0].detach().cpu(),
                                                          gt_seg_map0= None if gt_seg_crowd is None else gt_seg_crowd[0].detach().cpu())

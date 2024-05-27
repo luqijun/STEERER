@@ -23,7 +23,7 @@ from lib.utils.logger import Logger as Log
 all_backbones = [
  
      "MocBackbone",
-    "MocHRBackbone","MocCatBackbone", "MAEvitBackbone","VGGBackbone","HRBackboneFPN"
+    "MocHRBackbone","MocCatBackbone", "MAEvitBackbone","VGGBackbone","HRBackboneFPN", ''
 ]
 
 class BackboneSelector(object):

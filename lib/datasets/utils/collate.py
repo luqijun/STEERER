@@ -12,6 +12,8 @@ from torch.utils.data._utils.collate import default_collate
 from typing import Optional, List
 from torch import Tensor
 
+from lib.models.networks.layers import NestedTensor
+
 TORCH_MAJOR = int(torch.__version__.split('.')[0])
 TORCH_MINOR = int(torch.__version__.split('.')[1])
 if TORCH_MAJOR == 1 and TORCH_MINOR < 8:
@@ -188,6 +190,26 @@ def p2pnet_collate(batch):
     batch[0] = nested_tensor_from_tensor_list(batch[0])
     return tuple(batch)
 
+
+def pet_collate(batch):
+    batch = list(zip(*batch))
+    batch[0] = nested_tensor_from_tensor_list_pet(batch[0])
+    img_shape = batch[0].tensors.shape[-2:]
+    for tgt in batch[1]:
+        if tgt['depth'].shape[-2:] != img_shape:
+            pad_w = img_shape[1] - tgt['depth'].shape[-1]
+            pad_h = img_shape[0] - tgt['depth'].shape[-2]
+
+            # depth pad
+            tgt['depth'] = torch.nn.functional.pad(tgt['depth'], (0, pad_w, 0, pad_h))
+
+        # depth level
+        # img_depth = tgt['depth']
+        # depth_level = torch.ones(img_depth.shape, device=img_depth.device)
+        # depth_level[img_depth > 0.4] = 0
+        # tgt['depth_level'] = depth_level
+    return tuple(batch)
+
 def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
     # TODO make this more general
     if tensor_list[0].ndim == 3:
@@ -206,14 +228,38 @@ def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
         raise ValueError('not supported')
     return tensor
 
-def _max_by_axis_pad(the_list):
+
+def nested_tensor_from_tensor_list_pet(tensor_list: List[Tensor]):
+    # TODO make this more general
+    if tensor_list[0].ndim == 3:
+        # if torchvision._is_tracing():
+        #     # nested_tensor_from_tensor_list() does not export well to ONNX
+        #     # call _onnx_nested_tensor_from_tensor_list() instead
+        #     return _onnx_nested_tensor_from_tensor_list(tensor_list)
+
+        # TODO make it support different-sized images
+        max_size = _max_by_axis_pad([list(img.shape) for img in tensor_list], block=256)
+
+        # min_size = tuple(min(s) for s in zip(*[img.shape for img in tensor_list]))
+        batch_shape = [len(tensor_list)] + max_size
+        b, c, h, w = batch_shape
+        dtype = tensor_list[0].dtype
+        device = tensor_list[0].device
+        tensor = torch.zeros(batch_shape, dtype=dtype, device=device)
+        mask = torch.ones((b, h, w), dtype=torch.bool, device=device)
+        for img, pad_img, m in zip(tensor_list, tensor, mask):
+            pad_img[: img.shape[0], : img.shape[1], : img.shape[2]].copy_(img)
+            m[: img.shape[1], :img.shape[2]] = False
+    else:
+        raise ValueError('not supported')
+    return NestedTensor(tensor, mask)
+
+def _max_by_axis_pad(the_list, block=128):
     # type: (List[List[int]]) -> List[int]
     maxes = the_list[0]
     for sublist in the_list[1:]:
         for index, item in enumerate(sublist):
             maxes[index] = max(maxes[index], item)
-
-    block = 128
 
     for i in range(2):
         maxes[i+1] = ((maxes[i+1] - 1) // block + 1) * block

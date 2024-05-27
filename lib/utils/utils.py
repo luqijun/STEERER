@@ -18,8 +18,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
+from torchvision.utils import save_image
 import random
 import shutil
+
+def save_tensor_to_image(tensor, save_path):
+    save_image(tensor, save_path)
 
 def get_world_size():
     if not torch.distributed.is_initialized():

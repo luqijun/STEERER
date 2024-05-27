@@ -150,7 +150,7 @@ def build_optimizer_cls(config, model):
             lr=config.BASE_LR,
             weight_decay=config.WEIGHT_DECAY,
         )
-    elif opt_lower == "adam_p2pnet":
+    elif opt_lower == "adam_p2pnet" or opt_lower == "adam_pet":
         param_dicts = [
             {"params": [p for n, p in model.named_parameters() if "backbone" not in n and p.requires_grad]},
             {

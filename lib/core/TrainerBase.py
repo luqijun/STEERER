@@ -6,6 +6,8 @@ from .cc_function import get_rank, get_world_size, AverageMeter, \
 import time
 import logging
 
+from ..models.networks.layers import NestedTensor
+
 
 def build_trainer(config):
     name = config.train.get('trainer', None)
@@ -432,6 +434,105 @@ class Trainer_Points_P2PNet:
                 writer_dict['train_global_steps'] = global_steps + 1
 
                 image = images[0]
+
+                save_vis = config.train.get('save_vis', False)
+                save_vis_freq = config.train.get('save_vis_freq', 20)
+                if save_vis and i_iter % save_vis_freq == 0:
+                    for t, m, s in zip(image, mean, std):
+                        t.mul_(s).add_(m)
+
+                    gt_points = targets[0]['points']
+                    pre_seg_crowd = get_seg_map_result(result, 'pre_seg_crowd')
+                    gt_seg_crowd = get_seg_map_result(result, 'gt_seg_crowd')
+                    save_results_points_with_seg_map(config, global_steps, img_vis_dir, image.cpu().data, \
+                                                   pre_points, gt_points,
+                                                   pre_seg_map0= None if pre_seg_crowd is None else pre_seg_crowd[0].detach().cpu()  ,
+                                                   gt_seg_map0= None if gt_seg_crowd is None else gt_seg_crowd[0].detach().cpu())
+
+
+class Trainer_Points_PET:
+    def train(self, config, epoch, num_epoch, epoch_iters, num_iters,
+              trainloader, optimizer, scheduler, model, writer_dict, device, img_vis_dir, mean, std, task_KPI,
+              train_dataset):
+
+        # Training
+        model.train()
+        batch_time = AverageMeter()
+        avg_loss = AverageMeter()
+        tic = time.time()
+        cur_iters = epoch * epoch_iters
+        writer = writer_dict['writer']
+        global_steps = writer_dict['train_global_steps']
+        rank = get_rank()
+        world_size = get_world_size()
+
+        for i_iter, batch in enumerate(trainloader):
+            samples, targets, *args = batch
+            images = samples.to(device)
+
+            kwargs = {}
+            kwargs["epoch"] = epoch
+            kwargs["targets"] = targets
+            label_maps = [tgt['label_map'] for tgt in kwargs["targets"]]
+            kwargs["label_map"] = [torch.stack(lm, dim=0).cuda() for lm in zip(*label_maps)]
+            result = model(images, kwargs["label_map"], 'train', *args, **kwargs)
+            losses = result['losses']
+            loss = losses.mean()
+
+            model.zero_grad()
+            # with torch.autograd.set_detect_anomaly(True):
+            loss.backward()
+            optimizer.step()
+
+            reduced_loss = reduce_tensor(loss)
+            # update average loss
+            avg_loss.update(reduced_loss.item())
+            # continue
+
+            outputs = result["outputs"]
+            targets = result["targets"]
+
+            outputs_points = outputs['pred_points']
+            # outputs_offsets = outputs['pred_offsets']
+
+            # measure elapsed time
+            batch_time.update(time.time() - tic)
+            tic = time.time()
+
+            # lr rate
+            no_adjust = config.lr_config.get('no_adjust', False)
+            if not no_adjust:
+                scheduler.step_update(epoch * epoch_iters + i_iter)
+
+            thrs = 0.5
+            if 'point_query_lengths' in outputs:
+                out_scores = torch.nn.functional.softmax(outputs['pred_logits'], -1)[..., 1]
+                valid_indexs = out_scores > thrs
+                valid_indexs_0 = valid_indexs.split(outputs['point_query_lengths'], 0)[0]
+                out_scores_0 = out_scores[:len(valid_indexs_0)][valid_indexs_0]
+                pre_points = outputs_points[:len(valid_indexs_0)][valid_indexs_0]
+            else:
+                out_scores = torch.nn.functional.softmax(outputs['pred_logits'][0], -1)[..., 1]
+                valid_indexs = out_scores > thrs
+                out_scores_0 = out_scores[valid_indexs]
+                pre_points = outputs_points[0][valid_indexs]
+
+            lr = optimizer.param_groups[0]['lr']
+            gt_cnt, pred_cnt =targets[0]['points'].shape[0], len(out_scores_0) # label[0].sum().item(), pre_den.sum().item()
+            if i_iter % config.print_freq == 0 and rank == 0:
+                print_loss = avg_loss.average() / world_size
+                msg = 'Epoch: [{}/{}] Iter:[{}/{}], Time: {:.2f}, ' \
+                      'lr: {:.6f}, Loss: {:.6f}, loss_ce:{:.6f}, loss_points:{:.6f}, pre: {:.1f}, gt: {:.1f}'.format(
+                    epoch, num_epoch, i_iter, epoch_iters,
+                    batch_time.average(), lr / config.optimizer.BASE_LR, print_loss, result['loss_dict']['loss_ce'], result['loss_dict']['loss_points'],
+                    pred_cnt, gt_cnt)
+                logging.info(msg)
+
+                writer.add_scalar('train_loss', print_loss, global_steps)
+                global_steps = writer_dict['train_global_steps']
+                writer_dict['train_global_steps'] = global_steps + 1
+
+                image = images.tensors[0] if  isinstance(images, NestedTensor) else images[0]
 
                 save_vis = config.train.get('save_vis', False)
                 save_vis_freq = config.train.get('save_vis_freq', 20)
