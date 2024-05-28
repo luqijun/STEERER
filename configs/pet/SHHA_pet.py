@@ -31,7 +31,7 @@ network = dict(
     pred_mask=False,
 
     matcher=dict(
-        type='HungarianMatcher2',
+        type='HungarianMatcher_DepthWeight',
         set_cost_class=1.0,
         set_cost_point=0.05
     ),
